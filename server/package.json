@@ -1,0 +1,19 @@
+{
+  "name": "codereview-server",
+  "version": "0.1.0",
+  "description": "CodeReviewSystem 服务端: 审查记录/用量统计/定时任务/管理系统",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "init-db": "node src/init-db.js",
+    "init-admin": "node src/init-admin.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "node-cron": "^3.0.3",
+    "pg": "^8.12.0"
+  }
+}

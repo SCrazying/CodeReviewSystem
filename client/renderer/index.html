@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>CodeReviewTool - AI 代码审查</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d;
+    --text: #e6edf3; --muted: #8b949e;
+    --accent: #2f81f7; --accent2: #388bfd;
+    --high: #f85149; --medium: #d29922; --low: #3fb950;
+    --sec: #a371f7;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; font-size: 13px; overflow: hidden; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+
+  /* ---- 顶部配置栏 ---- */
+  .config-bar { background: var(--panel); border-bottom: 1px solid var(--border); padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .config-bar label { color: var(--muted); font-size: 11px; }
+  .config-bar input, .config-bar select {
+    background: #0d1117; border: 1px solid var(--border); border-radius: 6px; color: var(--text);
+    padding: 5px 8px; font-size: 12px; min-width: 90px;
+  }
+  .config-bar input:focus { border-color: var(--accent); outline: none; }
+  .config-bar .wide { flex: 1; min-width: 140px; }
+  button {
+    background: #21262d; border: 1px solid #30363d; color: var(--text); border-radius: 6px;
+    padding: 5px 12px; cursor: pointer; font-size: 12px; transition: all .15s;
+  }
+  button:hover { background: #30363d; }
+  button.primary { background: var(--accent); border-color: var(--accent2); color: #fff; }
+  button.primary:hover { background: var(--accent2); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.danger { background: #d73a49; border-color: #f85149; color: #fff; }
+  .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+  .dot-ok { background: var(--low); } .dot-bad { background: var(--high); } .dot-idle { background: var(--muted); }
+  .dot-busy { background: #f0b429; animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+  /* ---- 主区域 ---- */
+  .main { flex: 1; display: flex; min-height: 0; }
+  .col { display: flex; flex-direction: column; min-width: 0; }
+  .col-mrs { width: 320px; border-right: 1px solid var(--border); background: var(--panel); }
+  .col-content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .col-log { width: 340px; border-left: 1px solid var(--border); background: var(--panel); }
+
+  .col-header { padding: 10px 12px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+  .mr-list { flex: 1; overflow-y: auto; }
+  .mr-item { padding: 10px 12px; border-bottom: 1px solid #21262d; cursor: pointer; transition: background .1s; }
+  .mr-item:hover { background: #1c2128; }
+  .mr-item.active { background: #1f2937; border-left: 3px solid var(--accent); }
+  .mr-item .t { font-weight: 600; font-size: 12.5px; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mr-item .meta { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mr-item .badge { display: inline-block; background: #238636; color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 10px; margin-left: 6px; }
+  .empty { color: var(--muted); text-align: center; padding: 30px 12px; font-size: 12px; }
+
+  /* ---- 内容区 ---- */
+  .toolbar { padding: 8px 12px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; }
+  .toolbar .mr-title { font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stats { display: flex; gap: 14px; padding: 10px 12px; border-bottom: 1px solid #21262d; font-size: 12px; }
+  .stats .n { font-weight: 700; font-size: 16px; }
+  .stats .high { color: var(--high); } .stats .medium { color: var(--medium); } .stats .low { color: var(--low); } .stats .all { color: var(--text); }
+  .comments { flex: 1; overflow-y: auto; padding: 10px 12px; }
+  .comment { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
+  .comment .head { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-bottom: 1px solid #21262d; background: #1a1f26; }
+  .comment .file { font-family: Consolas, monospace; font-size: 12px; color: #79c0ff; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .comment .sev { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+  .sev.high { background: rgba(248,81,73,.15); color: var(--high); }
+  .sev.medium { background: rgba(210,153,34,.15); color: var(--medium); }
+  .sev.low { background: rgba(63,185,80,.15); color: var(--low); }
+  .sev.security { background: rgba(163,113,247,.15); color: var(--sec); }
+  .comment .cat { color: var(--muted); font-size: 11px; }
+  .comment .body { padding: 8px 12px; line-height: 1.6; font-size: 12.5px; white-space: pre-wrap; word-break: break-word; }
+  .code-sec { font-family: Consolas, "Courier New", monospace; font-size: 11.5px; line-height: 1.45; white-space: pre; overflow-x: auto; padding: 7px 10px; margin-top: 6px; border-radius: 4px; background: var(--bg); border: 1px solid var(--border); }
+  .code-sec.neg { border-left: 3px solid #f85149; }
+  .code-sec.pos { border-left: 3px solid #3fb950; }
+  .code-sec .lbl { display: block; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 10.5px; color: var(--muted); margin-bottom: 3px; }
+  .comment .line { color: var(--muted); font-family: Consolas, monospace; font-size: 11px; background: #21262d; padding: 2px 8px; border-radius: 4px; }
+
+  /* ---- 日志 ---- */
+  .log-area { flex: 1; overflow-y: auto; padding: 10px 12px; font-family: Consolas, monospace; font-size: 11.5px; line-height: 1.7; }
+  .log-area div { border-bottom: 1px solid #161b22; padding: 1px 0; color: #a5d6ff; word-break: break-all; }
+  .log-area .err { color: var(--high); } .log-area .ok { color: var(--low); }
+
+  /* ---- M3 提交树 ---- */
+  .tabs { display:flex; border-bottom:1px solid var(--border); }
+  .tab-btn { background:transparent; border:none; border-bottom:2px solid transparent; color:var(--muted); padding:8px 12px; cursor:pointer; font-size:12px; flex:1; }
+  .tab-btn.active { color:var(--text); border-bottom-color:var(--accent); }
+  .branch-bar { display:flex; gap:6px; padding:6px; align-items:center; }
+  .branch-bar select { background:#0d1117; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 8px; font-size:12px; }
+  /* 分支下拉(可输入): 用 color-scheme 让 datalist 原生弹层随主题(深色模式黑底/浅色模式白底) */
+  #branch-select { color-scheme: dark; }
+  #branch-select::placeholder { color: var(--muted); opacity:.85; }
+  html[data-theme="light"] #branch-select { color-scheme: light; }
+  .commit-item { padding:8px 10px; border-bottom:1px solid #21262d; cursor:pointer; }
+  .commit-item:hover { background:#1c2128; }
+  .commit-item.sel { background:#12263d; }
+  .commit-item .h { font-family:Consolas,monospace; color:var(--accent); font-size:11px; }
+  .commit-item .s { font-size:12px; margin-top:2px; word-break:break-all; }
+  .commit-item .meta { color:var(--muted); font-size:11px; margin-top:2px; display:flex; gap:10px; }
+  .mr-badge { background:rgba(47,129,247,.15); color:#58a6ff; border-radius:8px; padding:0 6px; font-size:10px; margin-left:4px; }
+
+  
+  /* ---- 设置视图 Cursor 风格 ---- */
+  .settings-head { display:flex; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid var(--border); background:var(--panel); }
+  .settings-search { width:260px; background:#0d1117; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:5px 10px; font-size:12px; }
+  .settings-body { display:flex; height:calc(100% - 53px); }
+  .settings-nav { width:190px; border-right:1px solid var(--border); padding:12px 8px; overflow-y:auto; background:var(--panel); flex-shrink:0; }
+  .nav-group { color:var(--muted); font-size:10px; font-weight:600; letter-spacing:.5px; padding:10px 10px 4px; text-transform:uppercase; }
+  .nav-item { display:block; width:100%; text-align:left; background:transparent; border:none; color:var(--text); padding:7px 10px; border-radius:6px; cursor:pointer; font-size:12px; margin-bottom:1px; }
+  .nav-item:hover { background:#1c2128; }
+  .nav-item.active { background:rgba(47,129,247,.12); color:var(--accent); }
+  .settings-content { flex:1; overflow-y:auto; padding:18px 24px; }
+  .set-savebar { position: sticky; bottom: 0; background: var(--panel); padding: 12px 4px 0; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .panel-title { font-size:16px; font-weight:600; margin-bottom:14px; }
+  .set-group { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:14px 16px; margin-bottom:12px; max-width:680px; }
+  .set-title { font-size:13px; font-weight:600; color:var(--accent); margin-bottom:10px; }
+  .set-row { display:flex; align-items:center; gap:12px; padding:8px 0; border-bottom:1px solid #21262d22; }
+  .set-row:last-child { border-bottom:none; }
+  .set-row > label:first-child { width:130px; color:var(--muted); font-size:12px; flex-shrink:0; }
+  .set-input { width:320px; background:#0d1117; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:5px 9px; font-size:12px; }
+  .set-hint { color:var(--muted); font-size:11px; }
+  /* 开关 */
+  .switch { position:relative; display:inline-block; width:36px; height:20px; flex-shrink:0; }
+  .switch input { opacity:0; width:0; height:0; }
+  .slider { position:absolute; cursor:pointer; inset:0; background:#30363d; border-radius:10px; transition:.2s; }
+  .slider:before { content:""; position:absolute; width:14px; height:14px; left:3px; top:3px; background:#8b949e; border-radius:50%; transition:.2s; }
+  .switch input:checked + .slider { background:#2f81f7; }
+  .switch input:checked + .slider:before { transform:translateX(16px); background:#fff; }
+  /* ---- 浅色主题(全面覆盖, 避免深色块) ---- */
+  html[data-theme="light"] { --bg:#f6f8fa; --panel:#ffffff; --border:#d0d7de; --text:#1f2328; --muted:#57606a; --accent:#0969da; --red:#cf222e; --green:#1a7f37; }
+  html[data-theme="light"] .config-bar { background:#fff; }
+  html[data-theme="light"] .config-bar input, html[data-theme="light"] .config-bar select { background:#fff; }
+  html[data-theme="light"] .tabs { background:#f6f8fa; }
+  html[data-theme="light"] .col-mrs, html[data-theme="light"] .col-content, html[data-theme="light"] .col-log { background:#fff; }
+  html[data-theme="light"] .mr-item { border-bottom:1px solid #d0d7de; }
+  html[data-theme="light"] .mr-item:hover { background:#f3f4f6; }
+  html[data-theme="light"] .mr-item.active { background:#ddf4ff; }
+  html[data-theme="light"] .stats { border-bottom:1px solid #d0d7de; }
+  html[data-theme="light"] .comment { background:#fff; border:1px solid #d0d7de; }
+  html[data-theme="light"] .comment .head { background:#f6f8fa; border-bottom:1px solid #d0d7de; }
+  html[data-theme="light"] .comment .line { background:#eaeef2; }
+  html[data-theme="light"] .log-area { background:#fff; }
+  html[data-theme="light"] .log-area div { border-bottom:1px solid #eaeef2; color:#0550a8; }
+  html[data-theme="light"] .col-header { border-bottom:1px solid #d0d7de; }
+  html[data-theme="light"] .commit-item { border-bottom:1px solid #d0d7de; }
+  html[data-theme="light"] .commit-item:hover { background:#f3f4f6; }
+  html[data-theme="light"] .commit-item.sel { background:#ddf4ff; }
+  html[data-theme="light"] .settings-nav { background:#fff; }
+  html[data-theme="light"] .nav-item:hover { background:#f3f4f6; }
+  html[data-theme="light"] .nav-item.active { background:#ddf4ff; }
+  html[data-theme="light"] .set-input, html[data-theme="light"] .settings-search { background:#fff; }
+  html[data-theme="light"] .set-row { border-bottom:1px solid #eaeef2; }
+  html[data-theme="light"] .slider { background:#d0d7de; }
+  html[data-theme="light"] button:not(.primary):not(.tab-btn):not(.nav-item) { background:#fff; color:var(--text); }
+  /* ---- 字号 ---- */
+  html[data-font="small"] { font-size: 12px; }
+  html[data-font="large"] { font-size: 15px; }
+
+</style>
+</head>
+<body>
+
+<!-- 顶部精简条(设置收敛到 ⚙设置视图) -->
+<div class="config-bar">
+  <label style="color:var(--muted)">仓库</label>
+  <select id="top-repo" title="切换已配置仓库(设置中添加)"><option value="-1">-- 未配置 --</option></select>
+  <span id="top-repo-dir" style="color:var(--muted);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+  <button id="btn-refresh" class="primary">刷新</button>
+  <button id="btn-flush" title="推送本地缓存的审查记录">📤 推送</button>
+  <span id="conn-status"><span class="status-dot dot-idle"></span><span id="conn-text">未连接</span></span>
+  <span id="gate-status"></span>
+  <button id="btn-settings" class="primary" title="设置" style="margin-left:auto;background:var(--panel);border:1px solid var(--border);color:var(--text)">⚙ 设置</button>
+</div>
+
+<!-- 设置视图(Codex 风格: 分组卡片 + 开关) -->
+<div id="settings-view" style="display:none;flex:1;overflow:hidden">
+  <div class="settings-head">
+    <span style="font-size:15px;font-weight:600">⚙ 设置</span>
+    <input id="settings-search" class="settings-search" placeholder="搜索设置..." style="margin-left:auto">
+  </div>
+  <div class="settings-body">
+    <div class="settings-nav">
+      <button class="nav-item" data-action="home" title="返回主页(与设置互为切换)">🏠 主页</button>
+      <div class="nav-group">常规</div>
+      <button class="nav-item active" data-panel="panel-general">⚙️ 常规</button>
+      <button class="nav-item" data-panel="panel-server">☁ 服务端</button>
+      <div class="nav-group">编码</div>
+      <button class="nav-item" data-panel="panel-repo">📦 Git 仓库</button>
+      <button class="nav-item" data-panel="panel-review">🔍 审查偏好</button>
+      <div class="nav-group">个性化</div>
+      <button class="nav-item" data-panel="panel-appearance">☀ 外观</button>
+      <button class="nav-item" data-panel="panel-admin">🔐 高级</button>
+    </div>
+
+    <div class="settings-content">
+      <div id="panel-general" class="set-panel">
+        <div class="panel-title">常规</div>
+        <div class="set-group">
+          <div class="set-title">模型服务(OpenAI 兼容)</div>
+          <div class="set-row"><label>API 地址</label><input id="llm-host" class="set-input" style="width:340px" placeholder="https://opencode.ai/zen/go/v1"></div>
+          <div class="set-row"><label>API Key</label><input id="llm-apikey" class="set-input" style="width:340px" placeholder="留空则用环境变量" autocomplete="off" spellcheck="false"></div>
+          <div class="set-row"><label></label>
+            <button id="btn-fetch-models" title="根据上面配置拉取支持的模型列表">🔍 获取模型列表</button>
+            <span id="llm-msg" style="color:var(--muted);font-size:12px"></span>
+          </div>
+          <div class="set-row"><label>审查模型</label>
+            <select id="cfg-model" class="set-input" style="width:320px">
+              <option value="deepseek-v4-flash" selected>deepseek-v4-flash</option>
+            </select>
+          </div>
+          <div class="set-row"><label>审查深度</label>
+            <select id="set-depth" class="set-input" style="width:320px">
+              <option value="fast">快速</option>
+              <option value="standard" selected>标准</option>
+              <option value="deep">深度</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div id="panel-server" class="set-panel" style="display:none">
+        <div class="panel-title">服务端连接</div>
+        <div class="set-group">
+          <div class="set-row"><label>服务端地址</label><input id="cfg-serverurl" class="set-input" placeholder="http://127.0.0.1:3001"></div>
+          <div class="set-row"><label>客户端 Token</label><input id="cfg-clienttoken" type="password" class="set-input" placeholder="服务端管理后台创建"></div>
+          <div class="set-row"><label></label>
+            <div><button id="btn-recheck" style="background:#238636;border-color:#2ea043">🛡 卡控校验</button>
+            <button id="btn-test">测试连接</button>
+            <span id="set-gate-msg" style="color:var(--muted);font-size:12px"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="panel-repo" class="set-panel" style="display:none">
+        <div class="panel-title">Git 仓库(多仓库管理)</div>
+        <div class="set-group">
+          <div class="set-row"><label>仓库列表</label>
+            <select id="repo-list" class="set-input"><option value="-1">-- 选择仓库 --</option></select>
+            <button id="btn-add-repo" title="添加新仓库">＋ 新增</button>
+            <button id="btn-del-repo" style="color:var(--red)" title="删除当前仓库">删除</button>
+          </div>
+          <div class="set-row"><label>仓库名称</label><input id="repo-name" class="set-input" placeholder="例如 AutoTest"></div>
+          <div class="set-row"><label>Git 地址</label><input id="repo-url" class="set-input" placeholder="http://localhost:3000 或 https://gitlab.com/admin/xxx/dada" title="可直接填含项目路径的完整地址, 保存时自动解析出项目"></div>
+          <div class="set-row"><label>API Token</label><input id="repo-token" type="password" class="set-input" placeholder="Gitea/GitLab Token"></div>
+          <div class="set-row"><label>项目</label><input id="repo-project" class="set-input" placeholder="保存时自动从地址解析(可手改)"></div>
+          <div class="set-row"><label>本地仓库目录</label><input id="repo-dir" class="set-input" placeholder="D:\repo"></div>
+          <div class="set-row"><label></label>
+            <button id="btn-save-repo" class="primary">保存此仓库</button>
+            <span id="repo-msg" style="color:var(--muted);font-size:12px"></span>
+          </div>
+        </div>
+      </div>
+
+      <div id="panel-review" class="set-panel" style="display:none">
+        <div class="panel-title">审查偏好</div>
+        <div class="set-group">
+          <div class="set-row"><label>自动回填评论</label><label class="switch"><input type="checkbox" id="set-autopost"><span class="slider"></span></label><span class="set-hint">审查完成后自动把评论回填到 Git MR</span></div>
+          <div class="set-row"><label>自动修复分支</label><label class="switch"><input type="checkbox" id="set-autofix"><span class="slider"></span></label><span class="set-hint">审查完成自动创建修复分支(每问题一个 commit, 仅本地)</span></div>
+          <div class="set-row"><label>审查输出语言</label><select id="set-ocrlang" class="set-input" style="width:200px">
+              <option value="auto" selected>自动(推荐)</option>
+              <option value="zh">中文</option>
+              <option value="en">英文</option>
+            </select><span class="set-hint">自动: ocr 原文 + 客户端智能翻译; 中文: ocr 直接输出中文; 英文: 保持 ocr 原文</span></div>
+          <div class="set-row"><label>审查并发</label><input id="set-concurrency" type="number" min="1" max="32" value="8" class="set-input" style="width:90px"><span class="set-hint">ocr 同时审查的最大文件数(默认 8, 网络快可加大提速)</span></div>
+          <div class="set-row"><label>审查超时(分钟)</label><input id="set-timeout" type="number" min="5" max="480" value="60" class="set-input" style="width:90px"><span class="set-hint">审查超过该时长自动终止(默认 60 分钟, 大 MR 可调大)</span></div>
+          <div class="set-row"><label>推送失败上限</label><input id="set-pushtries" type="number" min="1" max="20" value="3" class="set-input" style="width:90px"><span class="set-hint">连续推送失败超过该次数自动停止重试(手动点「📤 推送」可恢复)</span></div>
+        </div>
+      </div>
+
+
+      <div id="panel-appearance" class="set-panel" style="display:none">
+        <div class="panel-title">外观</div>
+        <div class="set-group">
+          <div class="set-row"><label>主题</label>
+            <select id="set-theme" class="set-input">
+              <option value="dark" selected>深色</option>
+              <option value="light">浅色</option>
+              <option value="system">跟随系统</option>
+            </select>
+          </div>
+          <div class="set-row"><label>字体大小</label>
+            <select id="set-fontsize" class="set-input">
+              <option value="small">小</option>
+              <option value="medium" selected>中</option>
+              <option value="large">大</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div id="panel-admin" class="set-panel" style="display:none">
+        <div class="panel-title">高级(超级管理员)</div>
+        <div class="set-group">
+          <div class="set-row"><label>超级管理员密码</label><input id="admin-pwd" type="password" class="set-input" placeholder="输入超级管理员密码"></div>
+          <div class="set-row"><label></label>
+            <button id="btn-admin-auth" style="background:#6f42c1;border-color:#8b5cf6">🔐 授权(免服务端验证)</button>
+            <span id="admin-msg" style="color:var(--muted);font-size:12px"></span>
+          </div>
+          <div class="set-row"><label>说明</label><span class="set-hint">超级管理员授权后永久免服务端验证(离线可用), 关闭软件无需重新认证。密码验证仅本地进行。</span></div>
+          <div class="set-row"><label>当前状态</label><span id="admin-status" style="color:var(--muted);font-size:12px"></span></div>
+          <div class="set-row"><label></label><button id="btn-admin-revoke" style="color:var(--red);border-color:#f85149">注销管理员(恢复服务端验证)</button></div>
+        </div>
+        <div class="set-group">
+          <div class="set-row"><label>版本</label><span style="color:var(--muted);font-size:12px">CodeReviewTool v1.0 · AI 代码审查工作台</span></div>
+        </div>
+      </div>
+      <!-- 底部全局保存栏: 任何面板都可见 -->
+      <div class="set-savebar">
+        <button id="btn-save-settings" class="primary">保存全部设置</button>
+        <span id="set-msg" style="color:var(--green);font-size:12px;align-self:center"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="main" id="main-wrap">
+  <!-- 左侧: MR / 提交树 -->
+  <div class="col col-mrs">
+    <div class="tabs">
+      <button id="tab-mr" class="tab-btn active">待审查 MR <span id="mr-count"></span></button>
+      <button id="tab-commits" class="tab-btn">📚 提交树</button>
+    </div>
+    <div id="panel-mr" style="flex:1;min-height:0;display:flex;flex-direction:column">
+      <div class="mr-list" id="mr-list"></div>
+    </div>
+    <div id="panel-commits" style="display:none;flex:1;min-height:0;flex-direction:column">
+      <div class="branch-bar">
+        <input id="branch-select" list="branch-dl" style="flex:1;min-width:0;background:var(--panel);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:4px" placeholder="选择或输入分支名(自动过滤)" autocomplete="off" spellcheck="false">
+        <datalist id="branch-dl"></datalist>
+        <label style="display:flex;align-items:center;gap:4px;white-space:nowrap"><input type="checkbox" id="branch-all"> 全部分支</label>
+        <button id="btn-load-commits" class="primary" style="padding:3px 8px">加载</button>
+      </div>
+      <div class="mr-list" id="commit-list"></div>
+    </div>
+  </div>
+
+  <!-- 内容 -->
+  <div class="col col-content">
+    <div class="col-header">审查结果</div>
+    <div class="toolbar">
+      <span class="mr-title" id="detail-title">选择一个 MR 或提交开始审查</span>
+      <button id="btn-open" disabled title="在当前 MR/提交的网页打开">🌐 打开</button>
+      <button id="btn-review" disabled>🔍 开始审查</button>
+      <button id="btn-stop" disabled title="手动停止当前进行中的审查">⏹ 停止评审</button>
+      <button id="btn-post" class="primary" disabled>📤 回填评论</button>
+      <button id="btn-fix" disabled title="基于 MR 原始分支创建修复分支, 每个问题一个 commit, 仅本地">🔧 自动修复</button>
+    </div>
+    <div class="stats" id="stats" style="display:none">
+      <div>全部 <span class="n all" id="st-all">0</span></div>
+      <div>🔴 严重 <span class="n high" id="st-high">0</span></div>
+      <div>🟡 中等 <span class="n medium" id="st-medium">0</span></div>
+      <div>🟢 轻微 <span class="n low" id="st-low">0</span></div>
+      <div style="margin-left:auto;color:var(--muted)" id="st-time"></div>
+    </div>
+    <div id="rel-mr-box" style="display:none;padding:8px 12px;border-bottom:1px solid var(--border);background:rgba(167,113,247,.08);font-size:12px">
+      <span id="rel-mr-text" style="color:var(--sec)"></span>
+      <button id="btn-rel-open" style="margin-left:8px;padding:2px 8px">🌐 查看 MR</button>
+      <button id="btn-rel-review" style="margin-left:6px;padding:2px 8px;background:#6f42c1;border-color:#8b5cf6">🔍 审查整个 MR</button>
+    </div>
+    <div class="comments" id="comments"></div>
+  </div>
+
+  <!-- 日志 -->
+  <div class="col col-log">
+    <div class="col-header">运行日志</div>
+    <div class="log-area" id="log-area"></div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let currentMR = null;
+let currentTarget = null;   // { type:'mr'|'commit', iid|sha }
+let currentComments = [];
+let currentRelatedMr = null;
+
+// ---- 初始化 ----
+async function init() {
+  const cfg = await window.api.getConfig();
+  window.__lastCfg = cfg;
+  applyAppearance(cfg);
+  loadSettingsUI(cfg);
+  setModelValue(cfg.model);
+  $('cfg-serverurl').value = cfg.serverUrl || '';
+  $('cfg-clienttoken').value = cfg.clientToken || '';
+  if (!cfg.ocrAvailable) log('⚠️ 未找到 ocr(open-code-review), 请先 npm install -g @alibaba-group/open-code-review', true);
+  if (cfg.url && cfg.token) { await doRefresh(); }
+  await refreshGate();
+}
+
+// ---- 卡控状态显示(门禁) ----
+async function refreshGate() {
+  try {
+    const g = await window.api.gateStatus();
+    const btnReview = $('btn-review'), btnPost = $('btn-post');
+    if (g.ok) {
+      const tag = g.admin ? '🔐 超级管理员' : '今日已授权';
+      const color = g.admin ? '#8b5cf6' : '#3fb950';
+      $('gate-status').innerHTML = `<span class="status-dot dot-ok"></span><span style="color:${color}">${tag}</span><span style="color:var(--muted)">(待推缓存 ${g.pending} 条)</span>`;
+      btnReview.disabled = false;
+      btnPost.disabled = !currentMR;
+    } else {
+      $('gate-status').innerHTML = `<span class="status-dot dot-bad"></span><span style="color:#f85149">审查已禁用 · 需服务端授权</span><span style="color:var(--muted)">(待推缓存 ${g.pending} 条)</span>`;
+      btnReview.disabled = true;
+      btnPost.disabled = true;
+    }
+  } catch (e) {
+    $('gate-status').innerHTML = `<span class="status-dot dot-bad"></span><span style="color:#f85149">卡控状态未知</span>`;
+  }
+}
+
+function log(text, isErr) {
+  const d = document.createElement('div');
+  d.textContent = '[' + new Date().toLocaleTimeString() + '] ' + text;
+  if (isErr) d.className = 'err';
+  $('log-area').appendChild(d);
+  $('log-area').scrollTop = $('log-area').scrollHeight;
+}
+
+// ---- 设置视图(Codex 风格) ----
+function applyAppearance(cfg) {
+  const theme = cfg.theme || 'dark';
+  document.documentElement.dataset.theme = theme === 'system'
+    ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+    : theme;
+  document.documentElement.dataset.font = cfg.fontSize || 'medium';
+}
+let reposState = [];          // 多仓库列表
+let activeRepoIdx = 0;
+
+function renderRepoSelects(cfg) {
+  reposState = Array.isArray(cfg.repos) ? cfg.repos : [];
+  activeRepoIdx = typeof cfg.activeRepo === 'number' ? cfg.activeRepo : 0;
+  // 顶部精简条下拉
+  const top = $('top-repo');
+  top.innerHTML = '<option value="-1">-- 未配置 --</option>';
+  reposState.forEach((r, i) => {
+    const o = document.createElement('option');
+    o.value = i; o.textContent = r.name || r.project || ('仓库 ' + (i + 1));
+    top.appendChild(o);
+  });
+  top.value = reposState.length ? activeRepoIdx : -1;
+  $('top-repo-dir').textContent = reposState[activeRepoIdx] ? (reposState[activeRepoIdx].repoDir || '') : '';
+  // 设置页仓库列表
+  const rl = $('repo-list');
+  rl.innerHTML = '<option value="-1">-- 选择仓库 --</option>';
+  reposState.forEach((r, i) => {
+    const o = document.createElement('option');
+    o.value = i; o.textContent = (i === activeRepoIdx ? '★ ' : '') + (r.name || r.project || ('仓库 ' + (i + 1)));
+    rl.appendChild(o);
+  });
+  rl.value = reposState.length ? activeRepoIdx : -1;
+  if (reposState.length) loadRepoEditor(reposState[activeRepoIdx]);
+}
+
+function loadRepoEditor(r) {
+  $('repo-name').value = r.name || '';
+  $('repo-url').value = r.url || '';
+  $('repo-token').value = r.token || '';
+  $('repo-project').value = r.project || '';
+  $('repo-dir').value = r.repoDir || '';
+}
+
+// ---- 设置导航(Cursor 风格) ----
+function switchSettingsPanel(name) {
+  document.querySelectorAll('.nav-item').forEach((b) => b.classList.toggle('active', b.dataset.panel === name));
+  document.querySelectorAll('.set-panel').forEach((p) => { p.style.display = p.id === name ? '' : 'none'; });
+}
+function bindSettingsNav() {
+  document.querySelectorAll('.nav-item').forEach((b) => {
+    b.onclick = () => {
+      if (b.dataset.action === 'home') { showSettings(false); return; }
+      switchSettingsPanel(b.dataset.panel);
+    };
+  });
+  $('settings-search').oninput = () => {
+    const q = $('settings-search').value.trim().toLowerCase();
+    document.querySelectorAll('.nav-item').forEach((b) => {
+      b.style.display = (!q || b.textContent.toLowerCase().includes(q)) ? '' : 'none';
+    });
+  };
+}
+function setModelValue(model) {
+  // 模型下拉回填: 仅当有实际模型值时更新选中(空值不改动下拉, 避免重置已获取的模型列表/当前值)
+  const sel = $('cfg-model');
+  const m = String(model || '').trim();
+  if (!m) return;
+  let exists = false;
+  for (let i = 0; i < sel.options.length; i++) { if (sel.options[i].value === m) { exists = true; break; } }
+  if (!exists) {
+    const o = document.createElement('option');
+    o.value = m; o.textContent = m;
+    sel.appendChild(o);
+  }
+  sel.value = m;
+}
+function loadSettingsUI(cfg) {
+  $('cfg-serverurl').value = cfg.serverUrl || '';
+  $('cfg-clienttoken').value = cfg.clientToken || '';
+  setModelValue(cfg.model);
+  $('set-autopost').checked = !!cfg.autoPost;
+  $('set-autofix').checked = !!cfg.autoFix;
+  $('set-depth').value = cfg.reviewDepth || 'standard';
+  $('set-concurrency').value = cfg.concurrency || 8;
+  $('set-timeout').value = cfg.reviewTimeout || 60;
+  $('set-ocrlang').value = cfg.ocrLang || 'auto';
+  // 模型服务(直接填完整 API 地址)
+  $('llm-host').value = (cfg.llmBaseUrl || '').replace(/\/+$/, '');
+  $('llm-apikey').value = cfg.llmApiKey || '';
+  $('set-pushtries').value = cfg.pushMaxTries || 3;
+  $('set-theme').value = cfg.theme || 'dark';
+  $('set-fontsize').value = cfg.fontSize || 'medium';
+  renderRepoSelects(cfg);
+}
+function collectSettings() {
+  // 若正在编辑仓库字段, 先同步到 reposState
+  const idx = Number($('repo-list').value);
+  if (idx >= 0 && reposState[idx]) {
+    reposState[idx] = {
+      name: $('repo-name').value.trim(),
+      url: $('repo-url').value.trim(),
+      token: $('repo-token').value.trim(),
+      project: $('repo-project').value.trim(),
+      repoDir: $('repo-dir').value.trim(),
+    };
+  }
+  return {
+    repos: reposState,
+    activeRepo: activeRepoIdx,
+    url: reposState[activeRepoIdx] ? reposState[activeRepoIdx].url : '',
+    token: reposState[activeRepoIdx] ? reposState[activeRepoIdx].token : '',
+    project: reposState[activeRepoIdx] ? reposState[activeRepoIdx].project : '',
+    repoDir: reposState[activeRepoIdx] ? reposState[activeRepoIdx].repoDir : '',
+    model: $('cfg-model').value,
+    serverUrl: $('cfg-serverurl').value.trim(),
+    clientToken: $('cfg-clienttoken').value.trim(),
+    autoPost: $('set-autopost').checked,
+    autoFix: $('set-autofix').checked,
+    reviewDepth: $('set-depth').value,
+    ocrLang: $('set-ocrlang').value,
+    concurrency: Number($('set-concurrency').value) || 8,
+    reviewTimeout: Number($('set-timeout').value) || 60,
+    pushMaxTries: Number($('set-pushtries').value) || 3,
+    llmBaseUrl: $('llm-host').value.trim().replace(/\/+$/, ''),
+    llmApiKey: $('llm-apikey').value.trim(),
+    theme: $('set-theme').value,
+    fontSize: $('set-fontsize').value,
+  };
+}
+function loadSettingsUIFromBar() {
+  loadSettingsUI(window.__lastCfg || {});
+}
+window.__lastCfg = null;
+async function saveAllSettings() {
+  const cfg = collectSettings();
+  $('set-msg').textContent = '保存中...';
+  const r = await window.api.saveConfig(cfg).catch((err) => ({ ok: false, error: (err && err.message) || String(err) }));
+  applyAppearance(cfg);
+  // 保存后拉取拆分后的配置(地址含项目 → 自动拆出项目字段回显)
+  const cfg2 = r && r.ok ? await window.api.getConfig() : cfg;
+  renderRepoSelects(cfg2);
+  $('set-msg').textContent = r && r.ok ? '✅ 已保存' : '❌ ' + ((r && r.error) || '保存失败');
+  await refreshGate();
+  return r;   // 供 btn-save-repo 判断(修复"实际保存成功却报失败")
+}
+
+/** 顶部精简条切换仓库 */
+async function switchTopRepo(idx) {
+  activeRepoIdx = Number(idx);
+  const r = await saveAllSettings();
+  log('已切换仓库: ' + (reposState[activeRepoIdx] ? reposState[activeRepoIdx].name : '?'));
+  await doRefresh();
+  return r;
+}
+
+/** 设置页: 新增空仓库 */
+function addRepo() {
+  // 先把当前编辑中的仓库同步回去
+  const cur = Number($('repo-list').value);
+  if (cur >= 0 && reposState[cur]) {
+    reposState[cur] = {
+      name: $('repo-name').value.trim(), url: $('repo-url').value.trim(),
+      token: $('repo-token').value.trim(), project: $('repo-project').value.trim(),
+      repoDir: $('repo-dir').value.trim(),
+    };
+  }
+  reposState.push({ name: '新仓库' + (reposState.length + 1), url: '', token: '', project: '', repoDir: '' });
+  const rl = $('repo-list');
+  rl.innerHTML = '<option value="-1">-- 选择仓库 --</option>';
+  reposState.forEach((r, i) => {
+    const o = document.createElement('option');
+    o.value = i; o.textContent = (i === activeRepoIdx ? '★ ' : '') + (r.name || r.project || '仓库 ' + (i + 1));
+    rl.appendChild(o);
+  });
+  rl.value = reposState.length - 1;
+  loadRepoEditor(reposState[reposState.length - 1]);
+  $('repo-msg').textContent = '已添加, 填写后点「保存此仓库」';
+}
+/** 设置页: 删除当前仓库 */
+function delRepo() {
+  const idx = Number($('repo-list').value);
+  if (idx < 0) return;
+  reposState.splice(idx, 1);
+  if (activeRepoIdx >= reposState.length) activeRepoIdx = Math.max(0, reposState.length - 1);
+  renderRepoSelects({ repos: reposState, activeRepo: activeRepoIdx });
+  $('repo-msg').textContent = '已删除, 点「保存全部设置」生效';
+}
+function showSettings(show) {
+  $('settings-view').style.display = show ? '' : 'none';
+  $('main-wrap').style.display = show ? 'none' : '';
+  // 进设置时隐藏主页顶部操作栏, 返回时恢复
+  const bar = document.querySelector('.config-bar');
+  if (bar) bar.style.display = show ? 'none' : '';
+}
+
+  /* ---- 操作 ---- */
+async function doTest() {
+  // 测试服务端连接(而非 Git 服务)
+  const base = $('cfg-serverurl').value.trim();
+  const token = $('cfg-clienttoken').value.trim();
+  if (!base) { $('set-gate-msg').textContent = '请先填写服务端地址'; $('set-gate-msg').style.color = 'var(--red)'; return; }
+  $('set-gate-msg').textContent = '测试中...';
+  $('set-gate-msg').style.color = 'var(--muted)';
+  const r = await window.api.serverTest(base, token);
+  $('set-gate-msg').textContent = r.ok ? '✅ ' + r.info : '❌ ' + r.error;
+  $('set-gate-msg').style.color = r.ok ? 'var(--green)' : 'var(--red)';
+  log(r.ok ? '服务端连接正常: ' + base : '服务端连接失败: ' + r.error);
+}
+
+async function doRefresh() {
+  setStatus('idle', '获取中...');
+  const r = await window.api.listMRs();
+  if (!r.ok) { setStatus('bad', '获取失败'); log('获取 MR 失败: ' + r.error, true); return; }
+  setStatus('ok', '已连接');
+  renderMRs(r.mrs);
+}
+
+function renderMRs(mrs) {
+  const list = $('mr-list');
+  list.innerHTML = '';
+  $('mr-count').textContent = `(${mrs.length})`;
+  if (mrs.length === 0) {
+    list.innerHTML = '<div class="empty">暂无待合入 MR</div>';
+    return;
+  }
+  mrs.forEach((mr) => {
+    const div = document.createElement('div');
+    div.className = 'mr-item' + (currentMR && currentMR.iid === mr.iid ? ' active' : '');
+    div.innerHTML = `<div class="t">${esc(mr.title)}<span class="badge">!${mr.iid}</span>
+      <button class="go-btn" title="在网页打开 MR" style="float:right;background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px">↗</button></div>
+      <div class="meta">${esc(mr.source_branch)} → ${esc(mr.target_branch)}</div>`;
+    div.onclick = () => selectMR(mr, div);
+    const go = div.querySelector('.go-btn');
+    if (go) go.onclick = (ev) => { ev.stopPropagation(); window.api.openUrl(mr.web_url || ''); };
+    list.appendChild(div);
+  });
+}
+
+function selectMR(mr, el) {
+  currentMR = mr;
+  currentTarget = { type: 'mr', iid: mr.iid, webUrl: mr.web_url || '' };
+  document.querySelectorAll('.mr-item').forEach((x) => x.classList.remove('active'));
+  if (el) el.classList.add('active');
+  $('detail-title').textContent = `!${mr.iid} [${mr.source_branch} → ${mr.target_branch}] ${mr.title}`;
+  $('btn-review').disabled = false;
+  $('btn-open').disabled = !mr.web_url;
+  $('btn-post').disabled = false;
+  $('btn-fix').disabled = false;
+  $('comments').innerHTML = '<div class="empty">点击「开始审查」执行 AI 审查</div>';
+  $('stats').style.display = 'none';
+  currentComments = [];
+}
+
+// ---- M3: 提交树 ----
+function selectCommit(commit, el) {
+  currentTarget = { type: 'commit', sha: commit.hash };
+  currentMR = null;
+  document.querySelectorAll('.commit-item').forEach((x) => x.classList.remove('sel'));
+  if (el) el.classList.add('sel');
+  $('detail-title').textContent = `提交 ${commit.hash.slice(0, 8)} · ${commit.subject}`;
+  $('btn-review').disabled = false;
+  $('btn-open').disabled = false;
+  $('btn-post').disabled = true;    // 单提交不支持回填
+  $('btn-fix').disabled = false;
+  $('comments').innerHTML = '<div class="empty">点击「开始审查」审查此提交</div>';
+  $('stats').style.display = 'none';
+  currentComments = [];
+}
+
+async function loadBranches() {
+  const r = await window.api.listBranches();
+  if (!r.ok) { log('加载分支失败: ' + r.error, true); return; }
+  const sel = $('branch-select');
+  const dl = $('branch-dl');
+  dl.innerHTML = '';
+  const o0 = document.createElement('option'); o0.value = ''; o0.textContent = '-- 选择分支 --';
+  dl.appendChild(o0);
+  r.branches.forEach((b) => {
+    const o = document.createElement('option');
+    o.value = b; o.textContent = b;
+    dl.appendChild(o);
+  });
+  if (r.branches.length) {
+    const cur = r.branches.find((b) => !b.startsWith('origin/') && !b.startsWith('remotes/'));
+    if (cur) sel.value = cur;
+  }
+}
+
+async function loadCommits() {
+  const branch = $('branch-select').value;
+  const all = $('branch-all').checked;
+  if (!branch && !all) { log('请选择分支或勾选「全部分支」', true); return; }
+  log(`加载提交(${all ? '全部分支' : branch})...`);
+  const r = await window.api.listCommits(branch, all);
+  if (!r.ok) { log('加载提交失败: ' + r.error, true); return; }
+  log(`提交 ${r.commits.length} 条`);
+  const list = $('commit-list');
+  list.innerHTML = '';
+  if (!r.commits.length) { list.innerHTML = '<div class="empty">暂无提交</div>'; return; }
+  r.commits.forEach((c) => {
+    const div = document.createElement('div');
+    div.className = 'commit-item';
+    div.innerHTML = `<div class="h"><span style="cursor:pointer" data-sha="${c.hash}" title="在网页查看提交">${c.hash.slice(0, 8)}</span>${c.hasMr ? ' <span class="mr-badge">🔀 MR</span>' : ''} <button class="go-btn" data-sha="${c.hash}" title="在网页打开" style="float:right;background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px">↗</button></div>
+      <div class="s">${esc(c.subject)}</div>
+      <div class="meta"><span>${esc(c.date)}</span><span>${esc(c.author)}</span></div>`;
+    div.onclick = () => selectCommit(c, div);
+    const go = div.querySelector('.go-btn');
+    if (go) go.onclick = (ev) => { ev.stopPropagation(); window.api.openCommit(c.hash); };
+    list.appendChild(div);
+  });
+}
+
+async function doReview() {
+  if (!currentTarget) return;
+  $('btn-review').disabled = true;
+  $('btn-post').disabled = true;
+  $('btn-fix').disabled = true;
+  $('btn-stop').disabled = false;               // 审查中可用"停止评审"
+  // 实时进度: 状态区显示审查进行中 + 已运行秒数
+  const t0 = Date.now();
+  const prog = setInterval(() => {
+    const sec = Math.round((Date.now() - t0) / 1000);
+    const who = currentTarget.type === 'mr' ? `MR !${currentTarget.iid}` : `提交 ${String(currentTarget.sha || '').slice(0, 8)}`;
+    $('conn-status').innerHTML = `<span class="status-dot dot-busy"></span><span>${esc(who)}(ocr 审查中, 已运行 ${sec}s)</span>`;
+  }, 1000);
+  let r;
+  try {
+    if (currentTarget.type === 'mr') {
+      log(`开始审查 MR !${currentTarget.iid} ...`);
+      r = await window.api.runReview(currentTarget.iid);
+    } else {
+      log(`开始审查提交 ${currentTarget.sha.slice(0, 8)} ...`);
+      r = await window.api.runCommitReview(currentTarget.sha);
+    }
+  } finally {
+    clearInterval(prog);
+    $('btn-stop').disabled = true;
+  }
+  $('btn-review').disabled = false;
+  if (!r.ok) {
+    log(r.stopped ? `⏹ 审查已停止(${r.error || ''})` : '审查失败: ' + (r.error || '未知错误'), true);
+    if (r.stopped) setStatus('bad', '审查已手动停止');
+    return;
+  }
+  // 先启用回填/修复按钮(有评论即可); 提前到渲染前, 防止渲染问题影响按钮状态
+  const hasComments = Array.isArray(r.comments) && r.comments.length > 0;
+  $('btn-post').disabled = !hasComments;
+  $('btn-fix').disabled = !hasComments;
+  currentComments = r.comments;
+  renderComments(r.comments, r.summary);
+  setStatus('ok', `审查完成 · ${r.comments.length} 条`);
+  const cbox = $('comments');
+  if (cbox) cbox.scrollTop = 0;
+  // 关联 MR 提示(commit 审查后): 有关联→紫色可操作; 无关联→黄色警示
+  currentRelatedMr = null;
+  if (currentTarget.type === 'commit') {
+    if (r.relatedMr) {
+      currentRelatedMr = r.relatedMr;
+      $('rel-mr-text').textContent = `🔗 该提交属于 MR !${r.relatedMr.iid} ${r.relatedMr.title ? '· ' + r.relatedMr.title : ''}`;
+      $('rel-mr-text').style.color = 'var(--sec)';
+      $('rel-mr-box').style.background = 'rgba(167,113,247,.08)';
+      $('btn-rel-open').style.display = '';
+      $('btn-rel-review').style.display = '';
+      $('rel-mr-box').style.display = '';
+    } else {
+      $('rel-mr-text').textContent = '⚠️ 该提交未关联到任何开放的 MR: 回填将写入「提交评论」(GitLab) 或无法回填(Gitea), 不会进入 MR 讨论。如需在 MR 上审查, 请审查该 MR 或其所属分支的提交。';
+      $('rel-mr-text').style.color = 'var(--medium)';
+      $('rel-mr-box').style.background = 'rgba(210,153,34,.1)';
+      $('btn-rel-open').style.display = 'none';
+      $('btn-rel-review').style.display = 'none';
+      $('rel-mr-box').style.display = '';
+    }
+  } else {
+    $('rel-mr-box').style.display = 'none';
+  }
+  log(`✅ 审查完成: ${r.comments.length} 条评论`);
+  // 醒目提示(即使没开系统通知也能看到)
+  if (r.comments.length > 0) {
+    $('detail-title').textContent += '  → 发现问题 ' + r.comments.length + ' 条';
+  }
+}
+
+async function doFix() {
+  if (!currentTarget) return;
+  if (currentTarget.type === 'mr') {
+    log(`启动自动修复 MR !${currentTarget.iid} ...`);
+    const r = await window.api.runAutoFix(currentTarget.iid);
+    if (r.ok) log(r.message || `✅ ${r.applied} 个修复已提交到 ${r.fixBranch}(仅本地)`);
+    else log((r.message || r.error || '自动修复失败'), true);
+    await refreshGate();
+  } else {
+    log(`启动提交自动修复 ${String(currentTarget.sha).slice(0, 8)} ...`);
+    const r = await window.api.fixCommit(currentTarget.sha);
+    if (r.ok) log(r.message || `✅ ${r.applied} 个修复已提交到 ${r.fixBranch}(仅本地)`);
+    else log((r.message || r.error || '自动修复失败'), true);
+  }
+}
+
+function renderComments(comments, summary) {
+  $('stats').style.display = 'flex';
+  const sev = { high: 0, medium: 0, low: 0 };
+  // 归一化 ocr 的严重级别(critical/warning/info/error... → high/medium/low)
+  const norm = (s) => {
+    s = String(s || '').toLowerCase();
+    if (['critical', 'error', 'blocker', 'high', 'security', 'fatal'].includes(s)) return 'high';
+    if (['warning', 'warn', 'medium'].includes(s)) return 'medium';
+    return 'low';   // info / low / note / nit / style / 其它
+  };
+  comments.forEach((c) => { const k = norm(c.severity); if (sev[k] !== undefined) sev[k]++; });
+  $('st-all').textContent = comments.length;
+  $('st-high').textContent = sev.high;
+  $('st-medium').textContent = sev.medium;
+  $('st-low').textContent = sev.low;
+  $('st-time').textContent = summary && summary.elapsed ? `耗时 ${summary.elapsed}` : '';
+
+  const box = $('comments');
+  box.innerHTML = '';
+  if (comments.length === 0) {
+    box.innerHTML = '<div class="empty">✅ 未发现问题</div>';
+    return;
+  }
+  comments.forEach((c) => {
+    // 徽章色: security 保留紫色, 其余按归一化级别(critical→high 红)
+    const sevKey = String(c.severity || '').toLowerCase() === 'security' ? 'security' : norm(c.severity);
+    const sevLabel = String(c.severity || 'low');
+    const div = document.createElement('div');
+    div.className = 'comment';
+    // 问题描述 + 问题代码片段 + 修复建议(有则显示更多内容)
+    let bodyHtml = esc(c.contentZh || c.content || '');
+    if (c.existing_code) bodyHtml += `<div class="code-sec neg"><span class="lbl">📄 问题代码</span>${esc(c.existing_code)}</div>`;
+    if (c.suggestion_code) bodyHtml += `<div class="code-sec pos"><span class="lbl">🔧 修复建议 <button class="cp-btn" data-code="s" title="复制修复代码" style="float:right;background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px">📋 复制</button></span>${esc(c.suggestion_code)}</div>`;
+    div.innerHTML = `<div class="head">
+        <span class="sev ${sevKey}">${esc(sevLabel)}</span>
+        <span class="file">${esc(c.path)}</span>
+        <span class="line">L${c.start_line}${c.end_line && c.end_line !== c.start_line ? '-' + c.end_line : ''}</span>
+        <span class="cat">${esc(c.category || '')}</span>
+      </div>
+      <div class="body">${bodyHtml}</div>`;
+    box.appendChild(div);
+  });
+  // 修复建议"复制"按钮: 拷贝 suggestion_code 到剪贴板
+  box.querySelectorAll('.cp-btn').forEach((btn) => {
+    btn.onclick = (ev) => {
+      ev.stopPropagation();
+      const sec = btn.closest('.code-sec');
+      const txt = [...sec.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent).join('').trim();
+      window.api.copyText(txt).then(() => {
+        btn.textContent = '✅ 已复制';
+        setTimeout(() => { btn.textContent = '📋 复制'; }, 1500);
+      });
+    };
+  });
+}
+
+async function doPost() {
+  if (!currentTarget || !currentComments || currentComments.length === 0) return;
+  $('btn-post').disabled = true;
+  let r;
+  try {
+    r = currentTarget.type === 'mr'
+      ? await window.api.postComments(currentTarget.iid || currentMR.iid)
+      : await window.api.commitPost(currentTarget.sha);
+  } catch (e) {
+    r = { ok: false, error: '回填异常: ' + (e && e.message ? e.message : e) };
+  } finally {
+    $('btn-post').disabled = false;   // 无论成功/失败/异常, 都恢复按钮
+  }
+  const where = r.viaMr ? `(回填到 MR !${r.viaMr})` : (r.viaCommit ? `(提交 ${r.viaCommit})` : '');
+  if (r.ok) log(`✅ 回填完成: ${r.posted} 条 ${where}`);
+  else log('回填失败: ' + (r.error || '未知错误'), true);
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function setStatus(state, text) {
+  $('conn-status').innerHTML = `<span class="status-dot dot-${state}"></span><span>${esc(text)}</span>`;
+}
+
+// 日志区右键 → 清空日志(自定义小菜单)
+(function bindLogContextMenu() {
+  const area = $('log-area');
+  area.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const removeMenu = () => { const m = $('log-ctx-menu'); if (m && m.parentNode) m.parentNode.removeChild(m); };
+    removeMenu();
+    const menu = document.createElement('div');
+    menu.id = 'log-ctx-menu';
+    menu.style.cssText = 'position:fixed;z-index:9999;background:var(--panel);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.35);font-size:12px;padding:4px 0;min-width:120px';
+    const item = document.createElement('div');
+    item.textContent = '🧹 清空日志';
+    item.style.cssText = 'padding:7px 16px;cursor:pointer;white-space:nowrap';
+    item.onmouseenter = () => { item.style.background = 'var(--bg)'; };
+    item.onmouseleave = () => { item.style.background = ''; };
+    item.onclick = () => { area.innerHTML = ''; removeMenu(); log('🧹 日志已清空'); };
+    menu.appendChild(item);
+    document.body.appendChild(menu);
+    const x = Math.min(e.clientX, window.innerWidth - 140);
+    const y = Math.min(e.clientY, window.innerHeight - 50);
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+    const dismiss = () => { removeMenu(); document.removeEventListener('click', dismiss); };
+    setTimeout(dismiss, 5000);
+    setTimeout(() => document.addEventListener('click', dismiss), 0);
+  });
+})();
+
+// ---- 事件 ----
+$('btn-settings').onclick = async () => {
+  // 进设置拉取最新配置(模型/仓库等以当前持久化值为准), 不重复获取模型列表
+  const cfg = await window.api.getConfig().catch(() => window.__lastCfg || {});
+  loadSettingsUI(cfg || {});
+  showSettings(true);
+};
+$('top-repo').onchange = () => switchTopRepo($('top-repo').value);
+$('repo-list').onchange = () => { const i = Number($('repo-list').value); if (i >= 0 && reposState[i]) loadRepoEditor(reposState[i]); };
+$('btn-add-repo').onclick = addRepo;
+$('btn-del-repo').onclick = delRepo;
+$('btn-save-repo').onclick = async () => {
+  const idx = Number($('repo-list').value);
+  if (idx < 0) { $('repo-msg').textContent = '请先选择仓库'; return; }
+  reposState[idx] = {
+    name: $('repo-name').value.trim(), url: $('repo-url').value.trim(),
+    token: $('repo-token').value.trim(), project: $('repo-project').value.trim(),
+    repoDir: $('repo-dir').value.trim(),
+  };
+  const r = await saveAllSettings();
+  $('repo-msg').textContent = r && r.ok ? '✅ 已保存' : '保存失败';
+};
+$('btn-admin-auth').onclick = async () => {
+  const pwd = $('admin-pwd').value;
+  if (!pwd) { $('admin-msg').textContent = '请输入密码'; return; }
+  $('btn-admin-auth').disabled = true;
+  const r = await window.api.adminAuth(pwd);
+  $('btn-admin-auth').disabled = false;
+  if (r.ok) {
+    $('admin-msg').textContent = '✅ 超级管理员已授权(永久, 免服务端验证)';
+    $('admin-msg').style.color = 'var(--green)';
+    $('admin-pwd').value = '';
+    log('🔐 超级管理员授权成功');
+  } else {
+    $('admin-msg').textContent = '❌ ' + r.error;
+    $('admin-msg').style.color = 'var(--red)';
+  }
+  refreshAdminStatus();
+  await refreshGate();
+};
+// 回车提交密码
+$('admin-pwd').onkeydown = (e) => { if (e.key === 'Enter') $('btn-admin-auth').onclick(); };
+// 获取模型列表
+$('btn-fetch-models').onclick = async () => {
+  const base = $('llm-host').value.trim().replace(/\/+$/, '');
+  const key = $('llm-apikey').value.trim();
+  $('llm-msg').textContent = '获取中...';
+  const r = await window.api.llmModels(base, key);
+  if (r.ok) {
+    const sel = $('cfg-model');
+    sel.innerHTML = '';
+    r.models.forEach((mid) => {
+      const o = document.createElement('option');
+      o.value = mid; o.textContent = mid;
+      sel.appendChild(o);
+    });
+    sel.value = r.models[0];
+    $('llm-msg').textContent = '✅ 获取到 ' + r.models.length + ' 个模型';
+    $('llm-msg').style.color = 'var(--green)';
+  } else {
+    $('llm-msg').textContent = '❌ ' + r.error;
+    $('llm-msg').style.color = 'var(--red)';
+  }
+};
+// 注销管理员后刷新状态
+$('btn-admin-revoke').onclick = async () => {
+  const r = await window.api.adminRevoke();
+  $('admin-msg').textContent = r.ok ? '已注销, 恢复服务端验证' : '注销失败';
+  $('admin-msg').style.color = r.ok ? 'var(--green)' : 'var(--red)';
+  refreshAdminStatus();
+  await refreshGate();
+};
+// 授权/注销后刷新管理员状态
+function refreshAdminStatus() {
+  window.api.gateStatus().then((g) => {
+    $('admin-status').textContent = g.admin ? '✅ 超级管理员已授权(永久, 免服务端验证)' : '未授权(使用服务端验证)';
+    $('admin-status').style.color = g.admin ? 'var(--green)' : 'var(--muted)';
+  });
+}
+bindSettingsNav();
+refreshAdminStatus();
+$('btn-save-settings').onclick = saveAllSettings;
+$('btn-test').onclick = doTest;
+$('btn-refresh').onclick = doRefresh;
+// 主题/字号即时预览
+$('set-theme').onchange = () => applyAppearance(collectSettings());
+$('set-fontsize').onchange = () => applyAppearance(collectSettings());
+$('btn-rel-open').onclick = () => { if (currentRelatedMr) window.api.openUrl(currentRelatedMr.web_url || ''); };
+$('btn-rel-review').onclick = async () => {
+  const rm = currentRelatedMr;
+  if (!rm) return;
+  log('🔍 从提交审查切换为整 MR 审查 ...');
+  currentTarget = { type: 'mr', iid: rm.iid, webUrl: rm.web_url || '' };
+  $('rel-mr-box').style.display = 'none';
+  doReview();
+};
+$('btn-open').onclick = () => {
+  if (!currentTarget) return;
+  if (currentTarget.type === 'mr') window.api.openUrl(currentTarget.webUrl || '');
+  else window.api.openCommit(currentTarget.sha);
+};
+$('btn-review').onclick = doReview;
+$('btn-stop').onclick = async () => {
+  log('⏹ 正在停止审查...');
+  const r = await window.api.stopReview();
+  log(r && r.stopped ? '⏹ 已发出停止信号, 等待进程退出...' : '当前无进行中的审查');
+};
+$('btn-post').onclick = doPost;
+$('btn-fix').onclick = doFix;
+$('tab-mr').onclick = () => { $('tab-mr').classList.add('active'); $('tab-commits').classList.remove('active'); $('panel-mr').style.display = 'flex'; $('panel-commits').style.display = 'none'; };
+$('tab-commits').onclick = () => {
+  $('tab-commits').classList.add('active'); $('tab-mr').classList.remove('active');
+  $('panel-mr').style.display = 'none'; $('panel-commits').style.display = 'flex';
+  if ($('branch-dl').children.length <= 1) loadBranches();
+};
+$('btn-recheck').onclick = async () => {
+  log('执行每日卡控校验...');
+  document.getElementById('btn-recheck').disabled = true;
+  await window.api.saveConfig(collectSettings());
+  const r = await window.api.gateRecheck();
+  log(r.ok ? '🛡 卡控通过' : '🛡 卡控未通过: ' + (r.error || ''));
+  document.getElementById('btn-recheck').disabled = false;
+  await refreshGate();
+};
+$('btn-flush').onclick = async () => {
+  const r = await window.api.flushQueue();
+  log(`📤 推送缓存完成: 成功 ${r.posted} 条, 剩余 ${r.pending} 条`);
+  await refreshGate();
+};
+$('btn-load-commits').onclick = loadCommits;
+$('branch-all').onchange = () => { if ($('branch-all').checked) loadCommits(); };
+window.api.onLog((line) => log(line));
+
+init();
+
+// 定期刷新卡控状态(待推缓存数会变化)
+window.setInterval(() => { refreshGate(); }, 15000);
+</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "zh-output",
+      "name": "Chinese output",
+      "description": "强制审查评论使用简体中文",
+      "glob": ["**"],
+      "instructions": "你在对代码进行代码审查。所有审查评论的 content 字段必须使用简体中文撰写(变量名/函数名/API 名等标识符保留原文)。描述要清晰完整,包含问题原因和影响。"
+    }
+  ]
+}

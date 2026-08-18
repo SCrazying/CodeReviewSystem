@@ -1,0 +1,33 @@
+// 安全桥接: 暴露受控 API 给渲染进程
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('api', {
+  getConfig: () => ipcRenderer.invoke('config:get'),
+  saveConfig: (cfg) => ipcRenderer.invoke('config:save', cfg),
+  testConnect: () => ipcRenderer.invoke('connect:test'),
+  serverTest: (baseUrl, token) => ipcRenderer.invoke('server:test', baseUrl, token),
+  listMRs: () => ipcRenderer.invoke('mrs:list'),
+  runReview: (iid) => ipcRenderer.invoke('review:run', iid),
+  stopReview: () => ipcRenderer.invoke('review:stop'),
+  postComments: (iid) => ipcRenderer.invoke('review:post', iid),
+  commitPost: (sha) => ipcRenderer.invoke('commit:post', sha),
+  fixCommit: (sha) => ipcRenderer.invoke('fix:commit', sha),
+  openUrl: (url) => ipcRenderer.invoke('open:url', url),
+  openCommit: (sha) => ipcRenderer.invoke('open:commit', sha),
+  copyText: (t) => ipcRenderer.invoke('clip:write', t),
+  // M2: 卡控 + 队列
+  gateStatus: () => ipcRenderer.invoke('gate:status'),
+  gateRecheck: () => ipcRenderer.invoke('gate:recheck'),
+  adminAuth: (password) => ipcRenderer.invoke('admin:auth', password),
+  adminRevoke: () => ipcRenderer.invoke('admin:revoke'),
+  llmModels: (baseUrl, apiKey) => ipcRenderer.invoke('llm:models', baseUrl, apiKey),
+  flushQueue: () => ipcRenderer.invoke('queue:flush'),
+  // M3: 提交树
+  listBranches: () => ipcRenderer.invoke('commits:branches'),
+  listCommits: (branch, all) => ipcRenderer.invoke('commits:list', branch, all),
+  runCommitReview: (sha) => ipcRenderer.invoke('commit:review', sha),
+  // M4: 自动修复
+  runAutoFix: (iid) => ipcRenderer.invoke('fix:run', iid),
+  fixStatus: () => ipcRenderer.invoke('fix:status'),
+  onLog: (cb) => ipcRenderer.on('log', (_e, line) => cb(line)),
+});

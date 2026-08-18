@@ -1,0 +1,49 @@
+{
+  "name": "code-review-tool",
+  "version": "1.0.0",
+  "description": "AI 代码审查工具 - 基于阿里 open-code-review + Gitea/GitLab",
+  "main": "main.js",
+  "author": "nil",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^43.4.0",
+    "electron-builder": "^25.0.0",
+    "electron-packager": "^17.1.2"
+  },
+  "build": {
+    "appId": "com.local.codereviewtool",
+    "productName": "CodeReviewTool",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "backend/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/@alibaba-group/open-code-review/**"
+    ]
+  },
+  "dependencies": {
+    "@alibaba-group/open-code-review": "^1.9.5"
+  }
+}

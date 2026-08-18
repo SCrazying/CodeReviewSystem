@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>CodeReviewSystem 管理后台</title>
+<style>
+:root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#e6edf3; --muted:#8b949e; --accent:#2f81f7; --green:#3fb950; --red:#f85149; --yellow:#d29922; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:"Segoe UI","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); font-size:13px; }
+.card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:16px; }
+h1 { font-size:16px; margin-bottom:14px; }
+h2 { font-size:13px; color:var(--muted); font-weight:600; margin:18px 0 8px; }
+input,select,button { background:#0d1117; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px 10px; font-size:12px; }
+button { cursor:pointer; }
+button.primary { background:var(--accent); border-color:#388bfd; }
+.center { display:flex; justify-content:center; align-items:center; min-height:100vh; }
+.login { width:300px; display:flex; flex-direction:column; gap:10px; }
+.stat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:8px; }
+.stat { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:14px; }
+.stat .v { font-size:22px; font-weight:700; }
+.stat .l { color:var(--muted); font-size:11px; margin-top:4px; }
+table { width:100%; border-collapse:collapse; font-size:12px; }
+th,td { text-align:left; padding:7px 9px; border-bottom:1px solid #21262d; white-space:nowrap; }
+th { color:var(--muted); font-weight:600; }
+.tag { padding:1px 8px; border-radius:10px; font-size:11px; }
+.tag.high,.tag.security { background:rgba(248,81,73,.15); color:var(--red); }
+.tag.medium { background:rgba(210,153,34,.15); color:var(--yellow); }
+.tag.low { background:rgba(63,185,80,.15); color:var(--green); }
+.hidden { display:none; }
+</style>
+</head>
+<body>
+<div id="login-wrap" class="center">
+  <div class="login card">
+    <h1 style="text-align:center">CodeReviewSystem 管理后台</h1>
+    <input id="u" placeholder="用户名" value="admin">
+    <input id="p" type="password" placeholder="密码">
+    <button id="btn-login" class="primary">登录</button>
+    <span id="login-err" style="color:var(--red);font-size:12px"></span>
+  </div>
+</div>
+
+
+      </div>
+    <div class="card">
+      <table id="tasks-tbl">
+        <thead><tr><th>ID</th><th>名称</th><th>仓库</th><th>模式</th><th>cron</th><th>状态</th><th>最近运行</th><th>操作</th></tr></thead>
+        <tbody id="tasks-body"></tbody>
+      </table>
+    </div>
+    <h2>任务执行历史</h2>
+    <div class="card"><table id="runs-tbl"><thead><tr><th>任务</th><th>开始</th><th>结束</th><th>状态</th><th>审查数</th><th>错误</th></tr></thead><tbody id="runs-body"></tbody></table></div>
+  </div>
+
+<div id="app" class="hidden" style="padding:20px;max-width:1200px;margin:0 auto">
+  <h1>📊 CodeReviewSystem 管理后台 <span id="user" style="color:var(--muted);font-size:12px"></span>
+    <button id="btn-logout" style="float:right">退出</button>
+  </h1>
+
+
+  <div style="margin-bottom:10px;display:flex;gap:6px">
+    <button id="nav-overview" class="primary" style="background:var(--accent)">总览</button>
+    <button id="nav-tasks">⏰ 定时任务</button>
+  </div>
+</div>
+  <div id="panel-tasks" style="display:none">
+    <h2>定时任务</h2>
+    <div class="card" style="margin-bottom:10px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="t-name" placeholder="任务名称" style="width:150px">
+        <select id="t-repo" style="width:170px"><option value="">-- 选择仓库 --</option></select>
+        <input id="t-cron" placeholder="cron 例: 0 9 * * *" style="width:130px">
+        <button id="btn-add-task" class="primary">＋ 创建</button>
+        <span id="t-msg" style="color:var(--green);font-size:12px"></span>
+      </div>
+  <div id="overview-sec">
+  <h2>总览</h2>
+  <div class="stat-grid" id="overview"></div>
+
+  <h2>最近审查记录</h2>
+  <div class="card">
+    <table id="reviews-tbl">
+      <thead><tr><th>ID</th><th>仓库</th><th>来源</th><th>目标</th><th>标题</th><th>问题</th><th>Token(入/出)</th><th>请求数</th><th>时间</th></tr></thead>
+      <tbody id="reviews-body"></tbody>
+    </table>
+  </div>
+
+  <h2>问题分类 TOP</h2>
+  <div class="card"><table id="cat-tbl"><thead><tr><th>类别</th><th>数量</th><th>严重(high/security)</th></tr></thead><tbody id="cat-body"></tbody></table></div>
+
+  <h2>Token 用量(近7天)</h2>
+  <div class="card"><table id="usage-tbl"><thead><tr><th>日期</th><th>输入</th><th>输出</th><th>请求次数</th><th>费用估算</th></tr></thead><tbody id="usage-body"></tbody></table></div>
+</div>
+
+<script>
+let jwt = localStorage.getItem('crs_jwt') || '';
+const $ = (id) => document.getElementById(id);
+async function api(path, opts = {}) {
+  const h = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+  if (jwt) h['Authorization'] = 'Bearer ' + jwt;
+  const r = await fetch('/api' + path, Object.assign({}, opts, { headers: h }));
+  if (r.status === 401) { logout(); throw new Error('未登录'); }
+  return r.json();
+}
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+function fmt(n) { return n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(n); }
+function logout() { jwt = ''; localStorage.removeItem('crs_jwt'); $('app').classList.add('hidden'); $('login-wrap').classList.remove('hidden'); }
+
+$('btn-login').onclick = async () => {
+  try {
+    const r = await api('/admin/login', { method: 'POST', body: JSON.stringify({ username: $('u').value, password: $('p').value }) });
+    jwt = r.token; localStorage.setItem('crs_jwt', jwt);
+    $('login-wrap').classList.add('hidden'); $('app').classList.remove('hidden');
+    $('user').textContent = r.username;
+    loadAll();
+  } catch (e) { $('login-err').textContent = e.message || '登录失败'; }
+};
+$('btn-logout').onclick = logout;
+
+async function loadAll() {
+  // 总览
+  try {
+    const o = await api('/stats/overview');
+    const rv = o.reviews || {};
+    const sev = {}; (o.bySeverity || []).forEach((s) => (sev[s.severity] = s.c));
+    $('overview').innerHTML = `
+      <div class="stat"><div class="v">${rv.reviews}</div><div class="l">审查次数</div></div>
+      <div class="stat"><div class="v" style="color:var(--red)">${sev.high || 0}</div><div class="l">🔴 严重问题</div></div>
+      <div class="stat"><div class="v" style="color:var(--yellow)">${sev.medium || 0}</div><div class="l">🟡 中等</div></div>
+      <div class="stat"><div class="v" style="color:var(--green)">${sev.low || 0}</div><div class="l">🟢 轻微</div></div>
+      <div class="stat"><div class="v">${fmt(rv.t_in)}</div><div class="l">输入 token</div></div>
+      <div class="stat"><div class="v">${rv.reqs}</div><div class="l">大模型请求次数</div></div>`;
+  } catch (e) { console.error(e); }
+
+  // 审查记录
+  try {
+    const d = await api('/reviews?page=1&pageSize=10');
+    $('reviews-body').innerHTML = d.rows.map((r) => `
+      <tr>
+        <td>${r.id}</td><td>${esc(r.repo_name)}</td><td>${r.source}</td>
+        <td>${r.target_type}#${esc(r.target_id)}</td><td>${esc(r.target_title || '').slice(0, 30)}</td>
+        <td style="color:var(--muted)">见详情</td><td>${fmt(r.input_tokens)}/${fmt(r.output_tokens)}</td>
+        <td>${r.request_count}</td><td>${new Date(r.created_at).toLocaleString()}</td>
+      </tr>`).join('');
+  } catch (e) { console.error(e); }
+
+  // 分类
+  try {
+    const c = await api('/stats/by-category');
+    $('cat-body').innerHTML = c.map((x) => `<tr><td>${esc(x.category || '未分类')}</td><td>${x.c}</td><td>${x.critical}</td></tr>`).join('');
+  } catch (e) { console.error(e); }
+
+  // 用量
+  try {
+    const u = await api('/stats/usage');
+    $('usage-body').innerHTML = u.slice(-7).map((x) => `
+      <tr><td>${x.day}</td><td>${fmt(x.t_in)}</td><td>${fmt(x.t_out)}</td><td>${x.reqs}</td><td>${x.cost}</td></tr>`).join('');
+  } catch (e) { console.error(e); }
+}
+
+
+// ---- 定时任务 ----
+$('nav-tasks').onclick = () => {
+  $('nav-tasks').classList.add('primary');
+  $('nav-overview').classList.remove('primary');
+  $('overview-sec').style.display = 'none';
+  $('panel-tasks').style.display = '';
+  loadRepos();
+  loadTasks();
+};
+$('nav-overview').onclick = () => {
+  $('nav-overview').classList.add('primary');
+  $('nav-tasks').classList.remove('primary');
+  $('overview-sec').style.display = '';
+  $('panel-tasks').style.display = 'none';
+  loadAll();
+};
+async function loadRepos() {
+  try {
+    const d = await api('/repos');
+    $('t-repo').innerHTML = '<option value="">-- 选择仓库 --</option>' + d.map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join('');
+  } catch (e) { console.error(e); }
+}
+async function loadTasks() {
+  try {
+    const d = await api('/tasks');
+    $('tasks-body').innerHTML = d.map((t) => `
+      <tr>
+        <td>${t.id}</td><td>${esc(t.name)}</td><td>${esc(t.repo_name || '-')}</td>
+        <td>${t.mode}</td><td>${esc(t.cron)}</td>
+        <td>${t.enabled ? '<span style="color:var(--green)">启用</span>' : '<span style="color:var(--muted)">停用</span>'}</td>
+        <td>${t.lastRun ? (t.lastRun.status === 'done' ? '✅ done' : '❌ ' + (t.lastRun.error_msg || '').slice(0, 30)) : '-'}</td>
+        <td>
+          <button onclick="runTask(${t.id})">▶ 执行</button>
+          <button onclick="toggleTask(${t.id}, ${!t.enabled})">${t.enabled ? '停用' : '启用'}</button>
+          <button onclick="delTask(${t.id})" style="color:var(--red)">删除</button>
+        </td>
+      </tr>`).join('') || '<tr><td colspan="8">暂无任务</td></tr>';
+    // 历史
+    const runs = await Promise.all(d.map(async (t) => {
+      try { const h = await api('/tasks/' + t.id + '/runs'); return h.map((r) => ({ ...r, taskName: t.name })); } catch { return []; }
+    }));
+    const all = [].concat(...runs).slice(0, 15);
+    $('runs-body').innerHTML = all.map((r) => `
+      <tr>
+        <td>${esc(r.taskName)}</td><td>${new Date(r.started_at).toLocaleString()}</td>
+        <td>${r.finished_at ? new Date(r.finished_at).toLocaleString() : '-'}</td>
+        <td>${r.status}</td><td>${r.reviews_created}</td><td>${esc((r.error_msg || '').slice(0, 40))}</td>
+      </tr>`).join('') || '<tr><td colspan="6">暂无执行记录</td></tr>';
+  } catch (e) { console.error(e); }
+}
+$('btn-add-task').onclick = async () => {
+  const name = $('t-name').value.trim(), repoId = $('t-repo').value, cron = $('t-cron').value.trim();
+  if (!name || !repoId || !cron) { $('t-msg').textContent = '请填写名称/仓库/cron'; $('t-msg').style.color = 'var(--red)'; return; }
+  try {
+    await api('/tasks', { method: 'POST', body: JSON.stringify({ name, repoId: Number(repoId), cron, mode: 'open_mrs', enabled: true }) });
+    $('t-msg').textContent = '✅ 已创建'; $('t-msg').style.color = 'var(--green)';
+    $('t-name').value = ''; $('t-cron').value = '';
+    loadTasks();
+  } catch (e) { $('t-msg').textContent = e.message; $('t-msg').style.color = 'var(--red)'; }
+};
+async function runTask(id) { try { await api('/tasks/' + id + '/run', { method: 'POST' }); loadTasks(); } catch (e) { console.error(e); } }
+async function toggleTask(id, enabled) { try { const t = (await api('/tasks')).find((x) => x.id === id); await api('/tasks/' + id, { method: 'PUT', body: JSON.stringify({ ...t, enabled }) }); loadTasks(); } catch (e) { console.error(e); } }
+async function delTask(id) { if (!confirm('确认删除任务?')) return; try { await api('/tasks/' + id, { method: 'DELETE' }); loadTasks(); } catch (e) { console.error(e); } }
+
+if (jwt) { $('login-wrap').classList.add('hidden'); $('app').classList.remove('hidden'); loadAll(); }
+</script>
+</body>
+</html>

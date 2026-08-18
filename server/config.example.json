@@ -1,0 +1,23 @@
+{
+  "port": 3001,
+  "pg": {
+    "host": "127.0.0.1",
+    "port": 5432,
+    "user": "postgres",
+    "password": "CHANGE_ME",
+    "database": "codereview"
+  },
+  "jwtSecret": "CHANGE_ME_RANDOM_SECRET",
+  "adminInitial": {
+    "username": "admin",
+    "password": "CHANGE_ME"
+  },
+  "llm": {
+    "provider": "opencode",
+    "baseUrl": "https://opencode.ai/zen/go/v1",
+    "apiKey": "",
+    "model": "deepseek-v4-flash",
+    "priceIn": 0,
+    "priceOut": 0
+  }
+}

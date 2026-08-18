@@ -1,0 +1,28 @@
+# 依赖
+node_modules/
+
+# 构建产物 / 分发包(153MB zip 超 GitHub 单文件限制, 不上传)
+client/dist/
+
+# ocr 便携配置(含 API Key, 敏感!)
+client/.opencodereview/
+
+# 操作系统 / 编辑器
+.DS_Store
+Thumbs.db
+*.log
+
+# 会话 / 临时
+client/tools/verify-*.js
+client/tools/test-*.js
+client/tools/probe-*.js
+client/tools/observe-*.js
+client/tools/diag-*.js
+client/tools/check-*.js
+client/tools/trace-*.js
+client/tools/clean-*.js
+client/tools/check-*.py
+
+# 服务端本地配置(含数据库密码/JWT, 提交 config.example.json 模板)
+server/config.json
+server/data/
