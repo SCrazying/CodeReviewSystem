@@ -86,8 +86,8 @@
 
   /* ---- M3 提交树 ---- */
   .tabs { display:flex; border-bottom:1px solid var(--border); }
-  .left-nav { padding:6px; border-bottom:1px solid var(--border); display:block; }
-  .left-nav .nav-item { font-size:12.5px; }
+  .left-nav { padding:6px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:1px; }
+  .left-nav .nav-item { font-size:12.5px; white-space:nowrap; }
   .tab-btn { background:transparent; border:none; border-bottom:2px solid transparent; color:var(--muted); padding:8px 12px; cursor:pointer; font-size:12px; flex:1; }
   .tab-btn.active { color:var(--text); border-bottom-color:var(--accent); }
   .branch-bar { display:flex; gap:6px; padding:6px; align-items:center; }
@@ -164,18 +164,6 @@
 </style>
 </head>
 <body>
-
-<!-- 顶部精简条(设置收敛到 ⚙设置视图) -->
-<div class="config-bar">
-  <label style="color:var(--muted)">仓库</label>
-  <select id="top-repo" title="切换已配置仓库(设置中添加)"><option value="-1">-- 未配置 --</option></select>
-  <span id="top-repo-dir" style="color:var(--muted);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
-  <button id="btn-refresh" class="primary">刷新</button>
-  <button id="btn-flush" title="推送本地缓存的审查记录">📤 推送</button>
-  <span id="conn-status"><span class="status-dot dot-idle"></span><span id="conn-text">未连接</span></span>
-  <span id="gate-status"></span>
-  <button id="btn-settings" class="primary" title="设置" style="margin-left:auto;background:var(--panel);border:1px solid var(--border);color:var(--text)">⚙ 设置</button>
-</div>
 
 <!-- 设置视图(Codex 风格: 分组卡片 + 开关) -->
 <div id="settings-view" style="display:none;flex:1;overflow:hidden">
@@ -323,10 +311,12 @@
   <!-- 左侧: MR / 提交树 -->
   <div class="col col-mrs">
     <nav class="left-nav" id="left-nav">
-      <div class="nav-item active" id="tab-mr">🚀 待合入 MR <span id="mr-count"></span></div>
+      <div class="nav-item active" id="nav-home">🏠 主页</div>
+      <div class="nav-item" id="tab-mr">🚀 待合入 MR <span id="mr-count"></span></div>
       <div class="nav-item" id="tab-mrhistory">🗂 历史 MR</div>
       <div class="nav-item" id="tab-commits">📚 提交树</div>
       <div class="nav-item" id="tab-history">📋 历史 Review</div>
+      <div class="nav-item" id="nav-settings" style="margin-top:auto;border-top:1px solid var(--border);border-radius:0;padding-top:8px">⚙ 设置</div>
     </nav>
     <div id="panel-mr" style="flex:1;min-height:0;display:flex;flex-direction:column">
       <div class="mr-list" id="mr-list"></div>
@@ -350,6 +340,15 @@
 
   <!-- 内容 -->
   <div class="col col-content">
+    <div class="config-bar">
+      <label style="color:var(--muted)">仓库</label>
+      <select id="top-repo" title="切换已配置仓库(设置中添加)"><option value="-1">-- 未配置 --</option></select>
+      <span id="top-repo-dir" style="color:var(--muted);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+      <button id="btn-refresh" class="primary">刷新</button>
+      <button id="btn-flush" title="推送本地缓存的审查记录">📤 推送</button>
+      <span id="conn-status"><span class="status-dot dot-idle"></span><span id="conn-text">未连接</span></span>
+      <span id="gate-status"></span>
+    </div>
     <div class="col-header">审查结果</div>
     <div class="toolbar">
       <span class="mr-title" id="detail-title">选择一个 MR 或提交开始审查</span>
@@ -386,6 +385,7 @@ const $ = (id) => document.getElementById(id);
 let currentMR = null;
 let currentTarget = null;   // { type:'mr'|'commit', iid|sha }
 let currentComments = [];
+let currentHistory = null;  // 选中的历史 Review 记录(可回填到其对应 MR/提交)
 let currentRelatedMr = null;
 
 // ---- 初始化 ----
@@ -690,6 +690,7 @@ function renderMRs(mrs) {
 
 function selectMR(mr, el) {
   currentMR = mr;
+  currentHistory = null;      // 切到 MR 时清除历史回填目标
   currentTarget = { type: 'mr', iid: mr.iid, webUrl: mr.web_url || '' };
   document.querySelectorAll('.mr-item').forEach((x) => x.classList.remove('active'));
   if (el) el.classList.add('active');
@@ -731,6 +732,7 @@ async function renderHistoryMRList() {
 function selectCommit(commit, el) {
   currentTarget = { type: 'commit', sha: commit.hash };
   currentMR = null;
+  currentHistory = null;      // 切到提交时清除历史回填目标
   document.querySelectorAll('.commit-item').forEach((x) => x.classList.remove('sel'));
   if (el) el.classList.add('sel');
   $('detail-title').textContent = `提交 ${commit.hash.slice(0, 8)} · ${commit.subject}`;
@@ -809,22 +811,25 @@ async function renderHistoryList() {
   });
 }
 
-/** 历史 Review: 查看某次的评论(只读, 复用右侧审查结果区) */
+/** 历史 Review: 查看某次的评论(可选择性回填到对应 MR/提交) */
 function selectHistory(h, el) {
   document.querySelectorAll('.commit-item').forEach((x) => x.classList.remove('sel'));
   if (el) el.classList.add('sel');
   currentTarget = null;
+  currentMR = null;
+  currentHistory = h;               // 记录历史, 供回填(带 repoKey/iid/sha)
   currentComments = h.comments || [];
   $('detail-title').textContent = `历史 · ${h.object || '审查'}${h.repoProject ? ' (' + h.repoProject + ')' : ''}`;
   $('btn-review').disabled = true;
-  $('btn-post').disabled = true;
+  $('btn-post').disabled = !currentComments.length;   // 历史上允许回填评论(需仓库匹配)
   $('btn-fix').disabled = true;
+  $('btn-open').disabled = true;
   $('rel-mr-box').style.display = 'none';
   if (currentComments.length) {
     renderComments(currentComments, {});
     setStatus('ok', `历史记录 · ${currentComments.length} 条评论`);
   } else {
-    $('comments').innerHTML = '<div class="empty">该次审查无评论</div>';
+    $('comments').innerHTML = '<div class="empty">该次审查无评论(不可回填)</div>';
     $('stats').style.display = 'none';
     setStatus('idle', '历史记录 · 无评论');
   }
@@ -939,7 +944,7 @@ function renderComments(comments, summary) {
     box.innerHTML = '<div class="empty">✅ 未发现问题</div>';
     return;
   }
-  comments.forEach((c) => {
+  comments.forEach((c, i) => {
     // 徽章色: security 保留紫色, 其余按归一化级别(critical→high 红)
     const sevKey = String(c.severity || '').toLowerCase() === 'security' ? 'security' : norm(c.severity);
     const sevLabel = String(c.severity || 'low');
@@ -950,6 +955,7 @@ function renderComments(comments, summary) {
     if (c.existing_code) bodyHtml += `<div class="code-sec neg"><span class="lbl">📄 问题代码</span>${esc(c.existing_code)}</div>`;
     if (c.suggestion_code) bodyHtml += `<div class="code-sec pos"><span class="lbl">🔧 修复建议 <button class="cp-btn" data-code="s" title="复制修复代码" style="float:right;background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px">📋 复制</button></span>${esc(c.suggestion_code)}</div>`;
     div.innerHTML = `<div class="head">
+        <input type="checkbox" class="post-cb" data-idx="${i}" checked title="勾选后才会回填此条" style="accent-color:var(--accent)">
         <span class="sev ${sevKey}">${esc(sevLabel)}</span>
         <span class="file">${esc(c.path)}</span>
         <span class="line">L${c.start_line}${c.end_line && c.end_line !== c.start_line ? '-' + c.end_line : ''}</span>
@@ -958,6 +964,17 @@ function renderComments(comments, summary) {
       <div class="body">${bodyHtml}</div>`;
     box.appendChild(div);
   });
+  // 勾选统计 + 全选/全不选
+  const updateSel = () => {
+    const cbs = box.querySelectorAll('.post-cb');
+    const n = box.querySelectorAll('.post-cb:checked').length;
+    const elapsed = (summary && summary.elapsed) ? `耗时 ${summary.elapsed} · ` : '';
+    $('st-time').innerHTML = `${elapsed}☑ 回填 <b>${n}</b>/${cbs.length} · ` +
+      '<span style="cursor:pointer;color:var(--accent)" onclick="selectPostCb(true)">全选</span>/<span style="cursor:pointer;color:var(--accent)" onclick="selectPostCb(false)">全不选</span>';
+  };
+  box.querySelectorAll('.post-cb').forEach((cb) => cb.onchange = updateSel);
+  updateSel();
+  window.selectPostCb = (v) => { box.querySelectorAll('.post-cb').forEach((cb) => { cb.checked = v; }); updateSel(); };
   // 修复建议"复制"按钮: 拷贝 suggestion_code 到剪贴板
   box.querySelectorAll('.cp-btn').forEach((btn) => {
     btn.onclick = (ev) => {
@@ -973,20 +990,31 @@ function renderComments(comments, summary) {
 }
 
 async function doPost() {
-  if (!currentTarget || !currentComments || currentComments.length === 0) return;
+  if (!currentTarget && !currentHistory) return;
+  // 收集勾选的评论(可选择性回填)
+  const ids = Array.from(document.querySelectorAll('#comments .post-cb:checked')).map((b) => Number(b.dataset.idx));
+  const sel = (currentComments || []).filter((_, i) => ids.includes(i));
+  if (!sel.length && (currentComments || []).length) { log('请先勾选要回填的评论', true); return; }
   $('btn-post').disabled = true;
   let r;
   try {
-    r = currentTarget.type === 'mr'
-      ? await window.api.postComments(currentTarget.iid || currentMR.iid)
-      : await window.api.commitPost(currentTarget.sha);
+    if (currentHistory) {
+      // 历史记录回填: MR 或 提交(携带原仓库 key 做一致校验)
+      if (currentHistory.iid) r = await window.api.postComments(currentHistory.iid, sel, currentHistory.repoKey);
+      else if (currentHistory.sha) r = await window.api.commitPost(currentHistory.sha, sel, { ok: true, repoKey: currentHistory.repoKey, comments: currentHistory.comments });
+      else return ($('btn-post').disabled = false, void log('该历史记录缺少回填目标(MR/提交)', true));
+    } else if (currentTarget.type === 'mr') {
+      r = await window.api.postComments(currentTarget.iid || currentMR.iid, sel);
+    } else {
+      r = await window.api.commitPost(currentTarget.sha, sel);
+    }
   } catch (e) {
     r = { ok: false, error: '回填异常: ' + (e && e.message ? e.message : e) };
   } finally {
     $('btn-post').disabled = false;   // 无论成功/失败/异常, 都恢复按钮
   }
   const where = r.viaMr ? `(回填到 MR !${r.viaMr})` : (r.viaCommit ? `(提交 ${r.viaCommit})` : '');
-  if (r.ok) log(`✅ 回填完成: ${r.posted} 条 ${where}`);
+  if (r.ok) log(`✅ 回填完成: ${r.posted} 条 ${where}${r.message && r.message !== 'ok' ? ' · ' + r.message : ''}`);
   else log('回填失败: ' + (r.error || '未知错误'), true);
 }
 
@@ -1027,11 +1055,24 @@ function setStatus(state, text) {
 })();
 
 // ---- 事件 ----
-$('btn-settings').onclick = async () => {
+function openSettings() {
   // 进设置拉取最新配置(模型/仓库等以当前持久化值为准), 不重复获取模型列表
-  const cfg = await window.api.getConfig().catch(() => window.__lastCfg || {});
-  loadSettingsUI(cfg || {});
-  showSettings(true);
+  window.api.getConfig().then((cfg) => {
+    loadSettingsUI(cfg || {});
+    showSettings(true);
+  }).catch(async () => {
+    loadSettingsUI(window.__lastCfg || {});
+    showSettings(true);
+  });
+}
+$('nav-settings').onclick = openSettings;
+$('nav-home').onclick = () => {
+  if (document.getElementById('settings-view').style.display !== 'none') {
+    showSettings(false);                 // 从设置返回主页
+  } else {
+    switchLeftTab('tab-mr');             // 已在主页: 激活默认「待合入 MR」
+  }
+  document.querySelectorAll('#left-nav .nav-item').forEach((b) => b.classList.toggle('active', b.id === 'nav-home'));
 };
 $('top-repo').onchange = () => switchTopRepo($('top-repo').value);
 $('repo-list').onchange = () => { const i = Number($('repo-list').value); if (i >= 0 && reposState[i]) loadRepoEditor(reposState[i]); };
@@ -1136,9 +1177,8 @@ $('btn-stop').onclick = async () => {
 $('btn-post').onclick = doPost;
 $('btn-fix').onclick = doFix;
 function switchLeftTab(activeId) {
-  ['tab-mr', 'tab-mrhistory', 'tab-commits', 'tab-history'].forEach((id) => {
-    document.getElementById(id).classList.toggle('active', id === activeId);
-  });
+  document.querySelectorAll('#left-nav .nav-item').forEach((b) => b.classList.remove('active'));
+  document.getElementById(activeId).classList.add('active');
   const map = { 'tab-mr': 'panel-mr', 'tab-mrhistory': 'panel-mrhistory', 'tab-commits': 'panel-commits', 'tab-history': 'panel-history' };
   ['panel-mr', 'panel-mrhistory', 'panel-commits', 'panel-history'].forEach((id) => {
     document.getElementById(id).style.display = id === map[activeId] ? 'flex' : 'none';

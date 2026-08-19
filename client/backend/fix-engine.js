@@ -195,8 +195,15 @@ class FixEngine {
         fs.writeFileSync(fileAbs, newContent, 'utf-8');
         const gadd = await this._git(['add', '-A']);
         if (!gadd.ok) { this.log('  ⚠ git add 失败'); failed++; continue; }
-        const subject = `fix(ai): ${(issue.category || 'issue')} ${fileRel}:${start} ${(issue.content || '').replace(/\n/g, ' ').slice(0, 60)}`;
-        const gcm = await this._git(['commit', '-m', subject]);
+        // 提交模板: 标题【fix】..., 描述【问题单号】+【影响性】(便于追单与 cherry-pick)
+        const sRaw = String(issue.severity || '').toLowerCase();
+        const sevZh = ['critical', 'error', 'blocker', 'high', 'security', 'fatal'].includes(sRaw) ? '高'
+          : (['warning', 'warn', 'medium'].includes(sRaw) ? '中' : '低');
+        const tickNo = review.mrId ? `MR#${review.mrId}` : (review.commitSha ? `commit/${review.commitSha.slice(0, 8)}` : 'local');
+        const desc = (issue.contentZh || issue.content || '').replace(/\n/g, ' ').trim();
+        const subject = `【fix】${(issue.category || 'issue')} ${fileRel}:${start} ${desc.slice(0, 60)}`;
+        const body = `【问题单号】${tickNo}\n【影响性】${sevZh}${desc ? ' · ' + desc.slice(0, 120) : ''}`;
+        const gcm = await this._git(['commit', '-m', subject, '-m', body]);
         if (!gcm.ok) { this.log('  ⚠ commit 失败: ' + gcm.stderr.slice(0, 100)); failed++; continue; }
         const sha = await this._git(['rev-parse', 'HEAD']);
         commits.push({ sha: sha.stdout.trim(), message: subject, issueId: i + 1 });

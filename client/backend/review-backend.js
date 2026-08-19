@@ -550,13 +550,18 @@ class ReviewBackend {
     return cleaned;
   }
 
-  async postComments(iid, log = () => {}, existingReview = null) {
+  async postComments(iid, log = () => {}, existingReview = null, selectedComments = null) {
     try {
       const mr = await this.getMr(iid);
       // 回填前清理脏数据(避免 Gitea LineBlame 引用坏对象返回 500)
       if (this.isGitea) await this._cleanDirtyReviews(iid);
       const review = existingReview || await this.runReview(iid, log);
       if (!review.ok) return review;
+      // 选择性回填: 仅回填调用方指定的评论子集
+      if (Array.isArray(selectedComments)) review.comments = selectedComments;
+      if (!Array.isArray(review.comments) || review.comments.length === 0) {
+        return { ok: true, posted: 0, message: '未选择要回填的评论' };
+      }
 
       // 补全 GitLab 行级评论需要的真实 sha(base/head)
       const shas = await this._resolveReviewShas(this.config.repoDir, review, mr);

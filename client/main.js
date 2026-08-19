@@ -386,17 +386,22 @@ async function autoFix(iid, review) {
   return fr;
 }
 
-ipcMain.handle('review:post', async (e, iid) => {
+ipcMain.handle('review:post', async (e, iid, comments, expectRepoKey) => {
   if (!gate || !gate.authorized) return { ok: false, error: '今日未通过服务端授权' };
   if (!backend) return { ok: false, error: '请先保存配置' };
+  // 历史记录回填: 若记录了所属仓库, 与当前激活仓库不一致则拒绝(防止把评论发错仓库)
+  if (expectRepoKey && expectRepoKey !== currentRepoKey()) {
+    const cur = activeRepoConfig(loadConfig());
+    return { ok: false, error: `该记录属于其他仓库, 请先在顶部切换到对应仓库后再回填(当前: ${(cur && cur.project) || '?'})` };
+  }
   // 优先复用最近一次审查结果: 必须同仓库 + 同 MR
   const reuse = lastReview && lastReview.mrId === Number(iid) && lastReview.ok && (!lastReview.repoKey || lastReview.repoKey === currentRepoKey());
   if (reuse) {
-    pushLog(`回填评论到 MR !${iid}(复用最近审查结果 ${lastReview.comments.length} 条)...`);
+    pushLog(`回填评论到 MR !${iid}(复用最近审查结果 ${lastReview.comments.length} 条, 已选 ${(comments || []).length} 条)...`);
   } else {
     pushLog(`未找到 MR !${iid} 的审查结果, 先审查本 MR(可能要几分钟)...`);
   }
-  const r = await backend.postComments(iid, (line) => pushLog('  ' + line), reuse ? lastReview : null);
+  const r = await backend.postComments(iid, (line) => pushLog('  ' + line), reuse ? lastReview : null, comments || null);
   pushLog(r.ok ? `✅ 回填完成: ${r.posted} 条评论` : `❌ 回填失败: ${r.error || '未知原因'}`);
   return r;
 });
@@ -453,13 +458,29 @@ ipcMain.handle('commit:review', async (e, sha) => {
   return r;
 });
 
-ipcMain.handle('commit:post', async (e, sha) => {
+ipcMain.handle('commit:post', async (e, sha, comments, historyReview) => {
   if (!gate || !gate.authorized) return { ok: false, error: '今日未通过服务端授权' };
   if (!backend) return { ok: false, error: '请先保存配置' };
-  const reuse = lastReview && lastReview.commitSha === String(sha) && lastReview.ok && (!lastReview.repoKey || lastReview.repoKey === currentRepoKey());
-  if (!reuse) return { ok: false, error: '请先审查该提交, 再回填评论' };
-  pushLog(`回填提交评论(${String(sha).slice(0, 8)})...`);
-  const r = await backend.postCommitComments(String(sha), lastReview, (line) => pushLog('  ' + line));
+  const sh = String(sha || '');
+  // 历史提交记录回填: 携带原仓库, 与当前不一致则拒绝
+  if (historyReview && historyReview.repoKey && historyReview.repoKey !== currentRepoKey()) {
+    const cur = activeRepoConfig(loadConfig());
+    return { ok: false, error: `该记录属于其他仓库, 请先在顶部切换到对应仓库后再回填(当前: ${(cur && cur.project) || '?'})` };
+  }
+  let review;
+  if (historyReview && historyReview.ok) {
+    // 历史记录: 直接用其评论(子集)
+    review = { ok: true, commitSha: sh, comments: Array.isArray(comments) ? comments : (historyReview.comments || []), repoKey: historyReview.repoKey };
+  } else {
+    // 常规: 复用最近一次该提交的审查结果
+    const reuse = lastReview && lastReview.commitSha === sh && lastReview.ok && (!lastReview.repoKey || lastReview.repoKey === currentRepoKey());
+    if (!reuse) return { ok: false, error: '请先审查该提交, 再回填评论' };
+    review = lastReview;
+    if (Array.isArray(comments)) review.comments = comments;
+  }
+  if (!Array.isArray(review.comments) || review.comments.length === 0) return { ok: true, posted: 0, message: '未选择要回填的评论' };
+  pushLog(`回填提交评论(${sh.slice(0, 8)}, ${review.comments.length} 条)...`);
+  const r = await backend.postCommitComments(sh, review, (line) => pushLog('  ' + line));
   pushLog(r.ok
     ? `✅ 提交回填完成: ${r.posted} 条${r.viaMr ? '(回填到 MR !' + r.viaMr + ')' : ''}`
     : `❌ 回填失败: ${r.error || '未知原因'}`);
