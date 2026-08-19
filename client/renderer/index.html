@@ -514,7 +514,7 @@ function loadSettingsUI(cfg) {
   setModelValue(cfg.model);
   $('set-autopost').checked = !!cfg.autoPost;
   $('set-autofix').checked = !!cfg.autoFix;
-  $('set-autopushfix').checked = !!cfg.autoPushFix;
+  $('set-autopushfix').checked = cfg.autoPushFix !== false;   // 默认勾选(修复即推送远端)
   $('set-depth').value = cfg.reviewDepth || 'standard';
   $('set-concurrency').value = cfg.concurrency || 8;
   $('set-timeout').value = cfg.reviewTimeout || 60;

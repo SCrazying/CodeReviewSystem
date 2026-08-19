@@ -163,7 +163,7 @@ ipcMain.handle('config:save', async (e, cfg) => {
     // 审查偏好(开关)
     autoPost: !!cfg.autoPost,
     autoFix: !!cfg.autoFix,
-    autoPushFix: !!cfg.autoPushFix,   // 修复分支创建后自动推送远端
+    autoPushFix: cfg.autoPushFix === undefined ? true : !!cfg.autoPushFix,   // 修复分支默认推送远端, 便于研发参考修改
     reviewDepth: String(cfg.reviewDepth || 'standard').trim(),
     // 审查输出语言: auto 自动(英文→客户端智能翻译) / zh 中文(ocr 直接中文) / en 英文
     ocrLang: String(cfg.ocrLang || 'auto').trim(),
