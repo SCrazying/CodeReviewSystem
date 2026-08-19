@@ -17,8 +17,8 @@
   ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
 
   /* ---- 顶部配置栏 ---- */
-  .config-bar { background: var(--panel); border-bottom: 1px solid var(--border); padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  .config-bar label { color: var(--muted); font-size: 11px; }
+  .config-bar { background: var(--panel); border-bottom: 1px solid var(--border); padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .config-bar label { color: var(--muted); font-size: 12px; }
   .config-bar input, .config-bar select {
     background: var(--bg); border: 1px solid var(--border); color: var(--text);
     border-radius: 6px; padding: 5px 9px; font-size: 12px;
@@ -46,14 +46,14 @@
   .col-content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
   .col-log { width: 340px; border-left: 1px solid var(--border); background: var(--panel); }
 
-  .col-header { padding: 11px 14px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; background: rgba(127,127,127,.10); }
+  .col-header { padding: 17px 16px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 15px; color: var(--text); letter-spacing: .4px; display: flex; justify-content: space-between; align-items: center; background: rgba(127,127,127,.12); }
   .mr-list { flex: 1; overflow-y: auto; }
   .mr-item { padding: 10px 12px; border-bottom: 1px solid #21262d; cursor: pointer; transition: background .1s; }
   .mr-item:hover { background: rgba(127,127,127,.07); }
   .mr-item.active { background: rgba(47,129,247,.12); }
-  .mr-item .t { font-weight: 600; font-size: 12.5px; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .mr-item .meta { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .mr-item .badge { display: inline-block; background: #238636; color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 10px; margin-left: 6px; }
+  .mr-item .t { font-weight: 600; font-size: 13.5px; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mr-item .meta { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mr-item .badge { display: inline-block; background: #238636; color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 10px; margin-left: 6px; }
   .empty { color: var(--muted); text-align: center; padding: 30px 12px; font-size: 12px; }
 
   /* ---- 内容区 ---- */
@@ -66,21 +66,21 @@
   .comment { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
   .comment .head { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-bottom: 1px solid #21262d; background: rgba(127,127,127,.06); }
   .comment .file { font-family: Consolas, monospace; font-size: 12px; color: #79c0ff; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .comment .sev { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+  .comment .sev { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
   .sev.high { background: rgba(248,81,73,.15); color: var(--high); }
   .sev.medium { background: rgba(210,153,34,.15); color: var(--medium); }
   .sev.low { background: rgba(63,185,80,.15); color: var(--low); }
   .sev.security { background: rgba(163,113,247,.15); color: var(--sec); }
-  .comment .cat { color: var(--muted); font-size: 11px; }
+  .comment .cat { color: var(--muted); font-size: 12px; }
   .comment .body { padding: 8px 12px; line-height: 1.6; font-size: 12.5px; white-space: pre-wrap; word-break: break-word; }
-  .code-sec { font-family: Consolas, "Courier New", monospace; font-size: 11.5px; line-height: 1.45; white-space: pre; overflow-x: auto; padding: 7px 10px; margin-top: 6px; border-radius: 4px; background: var(--bg); border: 1px solid var(--border); }
+  .code-sec { font-family: Consolas, "Courier New", monospace; font-size: 12.5px; line-height: 1.45; white-space: pre; overflow-x: auto; padding: 7px 10px; margin-top: 6px; border-radius: 4px; background: var(--bg); border: 1px solid var(--border); }
   .code-sec.neg { border-left: 3px solid #f85149; }
   .code-sec.pos { border-left: 3px solid #3fb950; }
-  .code-sec .lbl { display: block; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 10.5px; color: var(--muted); margin-bottom: 3px; }
-  .comment .line { color: var(--muted); font-family: Consolas, monospace; font-size: 11px; background: #21262d; padding: 2px 8px; border-radius: 4px; }
+  .code-sec .lbl { display: block; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 11.5px; color: var(--muted); margin-bottom: 3px; }
+  .comment .line { color: var(--muted); font-family: Consolas, monospace; font-size: 12px; background: #21262d; padding: 2px 8px; border-radius: 4px; }
 
   /* ---- 日志 ---- */
-  .log-area { flex: 1; overflow-y: auto; padding: 10px 12px; font-family: Consolas, monospace; font-size: 11.5px; line-height: 1.7; }
+  .log-area { flex: 1; overflow-y: auto; padding: 10px 12px; font-family: Consolas, monospace; font-size: 12.5px; line-height: 1.7; }
   .log-area div { border-bottom: 1px solid #161b22; padding: 1px 0; color: #a5d6ff; word-break: break-all; }
   .log-area .err { color: var(--high); } .log-area .ok { color: var(--low); }
 
@@ -99,17 +99,17 @@
   .commit-item { padding:8px 10px; border-bottom:1px solid #21262d; cursor:pointer; }
   .commit-item:hover { background:#1c2128; }
   .commit-item.sel { background:#12263d; }
-  .commit-item .h { font-family:Consolas,monospace; color:var(--accent); font-size:11px; }
+  .commit-item .h { font-family:Consolas,monospace; color:var(--accent); font-size:12px; }
   .commit-item .s { font-size:12px; margin-top:2px; word-break:break-all; }
-  .commit-item .meta { color:var(--muted); font-size:11px; margin-top:2px; display:flex; gap:10px; }
-  .mr-badge { background:rgba(47,129,247,.15); color:#58a6ff; border-radius:8px; padding:0 6px; font-size:10px; margin-left:4px; }
+  .commit-item .meta { color:var(--muted); font-size:12px; margin-top:2px; display:flex; gap:10px; }
+  .mr-badge { background:rgba(47,129,247,.15); color:#58a6ff; border-radius:8px; padding:0 6px; font-size:11px; margin-left:4px; }
 
   
   /* ---- 设置视图 Cursor 风格 ---- */
   .settings-body { display:flex; height:100%; }
   .settings-nav { width:300px; border-right:1px solid var(--border); padding:12px 8px; overflow-y:auto; background:var(--panel); flex-shrink:0; }
-  .nav-group { color:var(--muted); font-size:10px; font-weight:600; letter-spacing:.5px; padding:10px 10px 4px; text-transform:uppercase; }
-  .nav-item { display:block; width:100%; text-align:left; background:transparent; border:none; color:var(--text); padding:10px 12px; border-radius:6px; cursor:pointer; font-size:14px; margin-bottom:2px; }
+  .nav-group { color:var(--muted); font-size:11px; font-weight:600; letter-spacing:.5px; padding:10px 10px 4px; text-transform:uppercase; }
+  .nav-item { display:flex; align-items:center; gap:8px; width:100%; text-align:left; background:transparent; border:none; color:var(--text); padding:10px 12px; border-radius:6px; cursor:pointer; font-size:14px; margin-bottom:2px; line-height:1.4; }
   .nav-item:hover { background:#1c2128; }
   .nav-item.active { background:rgba(47,129,247,.12); color:var(--accent); }
   .settings-content { flex:1; overflow-y:auto; padding:18px 24px; }
@@ -121,7 +121,7 @@
   .set-row:last-child { border-bottom:none; }
   .set-row > label:first-child { width:130px; color:var(--muted); font-size:12px; flex-shrink:0; }
   .set-input { width:320px; background:#0d1117; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:5px 9px; font-size:12px; }
-  .set-hint { color:var(--muted); font-size:11px; }
+  .set-hint { color:var(--muted); font-size:12px; }
   /* 开关 */
   .switch { position:relative; display:inline-block; width:36px; height:20px; flex-shrink:0; }
   .switch input { opacity:0; width:0; height:0; }
@@ -174,6 +174,8 @@
       <div class="nav-group">编码</div>
       <button class="nav-item" data-panel="panel-repo">📦 Git 仓库</button>
       <button class="nav-item" data-panel="panel-review">🔍 审查偏好</button>
+      <div class="nav-group">自动化</div>
+      <button class="nav-item" data-panel="panel-schedule">⏰ 定时任务</button>
       <div class="nav-group">个性化</div>
       <button class="nav-item" data-panel="panel-appearance">☀ 外观</button>
       <button class="nav-item" data-panel="panel-admin">🔐 高级</button>
@@ -257,6 +259,36 @@
         </div>
       </div>
 
+      <!-- 定时任务(客户端): 按仓库创建多个定时扫描任务 -->
+      <div id="panel-schedule" class="set-panel" style="display:none">
+        <div class="panel-title">⏰ 定时任务(客户端)</div>
+        <div class="set-group">
+          <div class="set-title">新建任务</div>
+          <div class="set-row"><label>任务名称</label><input id="sched-name" class="set-input" style="width:220px" placeholder="例如 每日晨扫"></div>
+          <div class="set-row"><label>仓库</label><select id="sched-repo" class="set-input" style="width:220px"></select></div>
+          <div class="set-row"><label>扫描频率</label>
+            <select id="sched-interval" class="set-input" style="width:220px">
+              <option value="30">每 30 分钟</option>
+              <option value="60" selected>每小时</option>
+              <option value="120">每 2 小时</option>
+              <option value="240">每 4 小时</option>
+              <option value="360">每 6 小时</option>
+              <option value="720">每 12 小时</option>
+              <option value="1440">每天</option>
+            </select>
+          </div>
+          <div class="set-row"><label>开始时间</label><input id="sched-start" type="time" class="set-input" style="width:130px" title="从每天该时刻开始按频率扫描; 留空=立即开始"><span class="set-hint" style="align-self:center">留空 = 立即开始, 之后按频率</span></div>
+          <div class="set-row"><label></label><button id="btn-sched-create" class="primary">➕ 创建任务</button><span id="sched-msg" style="color:var(--muted);font-size:12px"></span></div>
+        </div>
+        <div class="set-group">
+          <div class="set-title">任务列表(每个任务可随时启动/关闭)</div>
+          <div id="sched-list"><span class="set-hint">加载中...</span></div>
+        </div>
+        <div class="set-group">
+          <div class="set-row"><label>说明</label><span class="set-hint" style="flex:1">定时任务运行在<b>客户端</b>(不依赖服务器定时), 随应用启动。每个任务可选仓库、频率与每日开始时间; 扫描到<b>新的待合入 MR</b> 时日志提示并自动刷新对应仓库列表。支持同时创建多个任务。</span></div>
+        </div>
+      </div>
+
 
       <div id="panel-appearance" class="set-panel" style="display:none">
         <div class="panel-title">外观</div>
@@ -319,7 +351,7 @@
           <div class="set-title">💬 审查与回填</div>
           <div class="set-row" style="align-items:flex-start"><label>审查输出语言</label><span class="set-hint" style="flex:1">审查偏好可设「中文」—— ocr 直接输出简体中文(无需再翻译); 设「自动」则英文原文 + 智能翻译。</span></div>
           <div class="set-row" style="align-items:flex-start"><label>选择性回填</label><span class="set-hint" style="flex:1">每条评论前有勾选框, 统计行支持「全选 / 全不选」; 「📤 回填评论」仅回填勾选项, 已在服务器存在的自动去重。</span></div>
-          <div class="set-row" style="align-items:flex-start"><label>历史回填</label><span class="set-hint" style="flex:1">历史 Review 里勾选评论后点「📤 回填评论」可补推到对应 MR/提交; 若记录属于其它仓库, 会提示先切换仓库。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>历史回填</label><span class="set-hint" style="flex:1">历史 Review 里勾选评论后点「📤 回填评论」可补推到对应 MR/提交; 若记录属于其它仓库且该仓库已配置, 会自动切换过去再回填(日志提示「已自动切换到记录所属仓库」), 无需手动操作。</span></div>
         </div>
 
         <div class="set-group">
@@ -334,12 +366,13 @@
           <div class="set-row" style="align-items:flex-start"><label>模型服务</label><span class="set-hint" style="flex:1">API 地址(head 幂版本须带 /v1)、API Key(不再使用系统环境变量)、审查模型(「获取模型列表」刷新)。</span></div>
           <div class="set-row" style="align-items:flex-start"><label>服务端</label><span class="set-hint" style="flex:1">单机服务地址 http://127.0.0.1:3001 与客户端 Token(卡控/记录推送)。</span></div>
           <div class="set-row" style="align-items:flex-start"><label>审查偏好</label><span class="set-hint" style="flex:1">自动回填、自动修复、修复后推送远端、审查输出语言、审查并发(1-32)、审查超时(默认 60 分钟)、推送失败上限。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>定时任务</label><span class="set-hint" style="flex:1">设置 → 定时任务: 客户端自动扫描待合入 MR(不依赖服务器)。可<b>按仓库创建多个任务</b>, 每个任务可选频率(30分钟/小时/2小时/4小时/6小时/12小时/天)与<b>每日开始时间</b>(留空=立即); 任务列表随时启动/停用/删除。发现新 MR 自动刷新对应仓库列表。</span></div>
         </div>
 
         <div class="set-group">
           <div class="set-title">⌨️ 快捷键 / 小技巧</div>
           <div class="set-row" style="align-items:flex-start"><label>Ctrl + / -</label><span class="set-hint" style="flex:1">放大 / 缩小整个界面布局; Ctrl+0 复位 100%(重启后保持上次大小)。</span></div>
-          <div class="set-row" style="align-items:flex-start"><label>日志右键</label><span class="set-hint" style="flex:1">运行日志区右键: 「📋 复制日志」(有选中只复制所选)、「🧹 清空日志」。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>日志选中复制</label><span class="set-hint" style="flex:1">运行日志可直接鼠标选中文字后 Ctrl+C 复制; 右键「📋 复制所选」与 Ctrl+C 完全一致(复制当前选区, 所见即所得)。右键「🧹 清空日志」。</span></div>
           <div class="set-row" style="align-items:flex-start"><label>仓库切换</label><span class="set-hint" style="flex:1">右上「审查结果」上方的仓库下拉可直接切换, 列表/审查随之更新。</span></div>
         </div>
 
@@ -349,7 +382,7 @@
           <div class="set-row" style="align-items:flex-start"><label>审查提示大模型找不到</label><span class="set-hint" style="flex:1">多为配置问题: 请到「常规」确认 API 地址/Key/模型已正确保存(保存通过校验即说明可用), 并覆盖安装最新版本。</span></div>
           <div class="set-row" style="align-items:flex-start"><label>审查超时</label><span class="set-hint" style="flex:1">大 MR 默认 60 分钟超时; 可在「审查偏好 → 审查超时」调大, 或调大「审查并发」加速。</span></div>
           <div class="set-row" style="align-items:flex-start"><label>回填失败 / 500</label><span class="set-hint" style="flex:1">已自动清理残留脏审查记录; 若仍失败, 把日志右键「复制日志」发给管理员排查。</span></div>
-          <div class="set-row" style="align-items:flex-start"><label>历史回填提示切换仓库</label><span class="set-hint" style="flex:1">该记录属于其它仓库, 先在上方仓库下拉切到对应仓库再回填, 防止评论发错仓库。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>历史回填提示仓库未配置</label><span class="set-hint" style="flex:1">历史记录所属仓库不在当前配置列表时, 才会提示; 到「设置 → Git 仓库」添加该仓库后再回填。已配置的仓库会自动切换。</span></div>
         </div>
       </div>
 
@@ -398,7 +431,7 @@
     <div class="config-bar">
       <label style="color:var(--muted)">仓库</label>
       <select id="top-repo" title="切换已配置仓库(设置中添加)"><option value="-1">-- 未配置 --</option></select>
-      <span id="top-repo-dir" style="color:var(--muted);font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+      <span id="top-repo-dir" style="color:var(--muted);font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
       <button id="btn-refresh" class="primary">刷新</button>
       <button id="btn-flush" title="推送本地缓存的审查记录">📤 推送</button>
       <span id="conn-status"><span class="status-dot dot-idle"></span><span id="conn-text">未连接</span></span>
@@ -442,6 +475,16 @@ let currentTarget = null;   // { type:'mr'|'commit', iid|sha }
 let currentComments = [];
 let currentHistory = null;  // 选中的历史 Review 记录(可回填到其对应 MR/提交)
 let currentRelatedMr = null;
+let reviewLock = false;     // 审查进行中: 锁定页面/对象切换, 避免主页状态异常
+let _lockTip = 0;
+function lockBlocked() {
+  if (!reviewLock) return false;
+  if (Date.now() - _lockTip > 2500) {
+    _lockTip = Date.now();
+    log('⏳ 审查进行中, 已锁定页面/对象切换(避免主页状态异常); 完成后自动解锁或点「⏹ 停止评审」', true);
+  }
+  return true;
+}
 
 // ---- 初始化 ----
 async function init() {
@@ -534,6 +577,9 @@ function loadRepoEditor(r) {
 function switchSettingsPanel(name) {
   document.querySelectorAll('.settings-nav .nav-item').forEach((b) => b.classList.toggle('active', b.dataset.panel === name));
   document.querySelectorAll('.set-panel').forEach((p) => { p.style.display = p.id === name ? '' : 'none'; });
+  // 使用手册等纯查看面板不显示底部保存栏
+  const sb = document.querySelector('.set-savebar');
+  if (sb) sb.style.display = ['panel-help'].includes(name) ? 'none' : '';
 }
 function bindSettingsNav() {
   document.querySelectorAll('.settings-nav .nav-item').forEach((b) => {
@@ -575,6 +621,76 @@ function loadSettingsUI(cfg) {
   $('set-theme').value = cfg.theme || 'dark';
   $('set-fontsize').value = cfg.fontSize || 'medium';
   renderRepoSelects(cfg);
+  renderSchedPanel(cfg);
+}
+/** 定时任务面板: 填充仓库下拉 + 渲染任务列表 */
+async function renderSchedPanel(cfg) {
+  const c = cfg || window.__lastCfg || {};
+  const repos = Array.isArray(c.repos) ? c.repos : [];
+  const sel = $('sched-repo');
+  sel.innerHTML = '';
+  repos.forEach((r, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = r.name || r.project || `仓库 ${i}`; sel.appendChild(o); });
+  if (repos.length === 0) { sel.innerHTML = '<option value="0">-- 无仓库, 请先到「Git 仓库」添加 --</option>'; }
+  await renderSchedList();
+}
+/** 渲染/刷新任务列表 */
+async function renderSchedList() {
+  const box = $('sched-list');
+  try {
+    const list = await window.api.scheduleList();
+    const repos = Array.isArray((window.__lastCfg || {}).repos) ? window.__lastCfg.repos : [];
+    if (!list.length) { box.innerHTML = '<span class="set-hint">暂无定时任务 —— 在上方创建</span>'; return; }
+    box.innerHTML = '';
+    list.forEach((t) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--border);font-size:12.5px';
+      row.innerHTML = `
+        <span style="flex:0 0 140px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.name)}">${esc(t.name)}</span>
+        <span style="flex:0 0 130px;color:var(--muted)">${esc((repos[Number(t.repoIndex)] || {}).name || (repos[Number(t.repoIndex)] || {}).project || '仓库?' )}</span>
+        <span style="flex:0 0 80px;color:var(--muted)">每 ${t.intervalMin % 60 === 0 ? (t.intervalMin % 1440 === 0 ? t.intervalMin / 1440 + ' 天' : t.intervalMin / 60 + ' 时') : t.intervalMin + ' 分'}</span>
+        <span style="flex:0 0 90px;color:var(--muted)">${t.startTime ? '⏱ ' + esc(t.startTime) : '立即'}</span>
+        <span style="flex:1;color:var(--muted);font-size:11.5px">${t.lastTs ? '上次 ' + new Date(t.lastTs).toLocaleTimeString() : '未触发'}</span>
+        <button data-tid="${esc(t.id)}" data-act="tog" style="padding:3px 10px;font-size:12px;${t.enabled ? 'background:#238636;border-color:#2ea043;color:#fff' : 'background:var(--panel);border:1px solid var(--border);color:var(--muted)'}">${t.enabled ? '● 运行中' : '○ 已停用'}</button>
+        <button data-tid="${esc(t.id)}" data-act="del" title="删除任务" style="padding:3px 9px;font-size:12px;color:var(--red);border-color:var(--red)">🗑</button>`;
+      box.appendChild(row);
+    });
+    box.querySelectorAll('button[data-tid]').forEach((btn) => {
+      btn.onclick = async () => {
+        const tid = btn.dataset.tid;
+        if (btn.dataset.act === 'tog') {
+          const cur = list.find((x) => x.id === tid);
+          await window.api.scheduleUpdate(tid, { enabled: !cur.enabled });
+          log(cur.enabled ? `⏰ 已暂停定时任务「${cur.name}」` : `⏰ 已启动定时任务「${cur.name}」`);
+        } else if (btn.dataset.act === 'del') {
+          await window.api.scheduleDelete(tid);
+          log(`🗑 已删除定时任务`);
+        }
+        renderSchedList();
+      };
+    });
+  } catch (e) {
+    box.innerHTML = '<span class="set-hint">加载任务失败</span>';
+  }
+}
+/** 创建定时任务(主进程即时生效) */
+async function createSched() {
+  const name = $('sched-name').value.trim();
+  if (!name) { $('sched-msg').textContent = '请填写任务名称'; return; }
+  const t = {
+    name,
+    repoIndex: Number($('sched-repo').value) || 0,
+    intervalMin: Number($('sched-interval').value) || 60,
+    startTime: $('sched-start').value || '',
+  };
+  const r = await window.api.scheduleCreate(t);
+  if (r.ok) {
+    $('sched-msg').textContent = '✅ 已创建并启动';
+    $('sched-name').value = '';
+    $('sched-start').value = '';
+    renderSchedList();
+  } else {
+    $('sched-msg').textContent = '❌ ' + (r.error || '创建失败');
+  }
 }
 function collectSettings() {
   // 若正在编辑仓库字段, 先同步到 reposState
@@ -647,6 +763,7 @@ async function saveAllSettings() {
 
 /** 顶部精简条切换仓库 */
 async function switchTopRepo(idx) {
+  if (lockBlocked()) return;   // 审查中禁止切换仓库
   activeRepoIdx = Number(idx);
   const r = await saveAllSettings();
   log('已切换仓库: ' + (reposState[activeRepoIdx] ? reposState[activeRepoIdx].name : '?'));
@@ -738,6 +855,7 @@ function renderMRs(mrs) {
 }
 
 function selectMR(mr, el) {
+  if (lockBlocked()) return;   // 审查中禁止切换审查对象
   currentMR = mr;
   currentHistory = null;      // 切到 MR 时清除历史回填目标
   currentTarget = { type: 'mr', iid: mr.iid, webUrl: mr.web_url || '' };
@@ -769,7 +887,7 @@ async function renderHistoryMRList() {
     const stColor = mr.state === 'merged' ? 'var(--green)' : 'var(--red)';
     div.innerHTML = `<div class="t">${esc(mr.title)}<span class="badge">!${mr.iid}</span>
       <button class="go-btn" title="在网页打开 MR" style="float:right;background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px">↗</button></div>
-      <div class="meta">${esc(mr.source_branch)} → ${esc(mr.target_branch)} <span style="color:${stColor};font-size:11px">${st}</span></div>`;
+      <div class="meta">${esc(mr.source_branch)} → ${esc(mr.target_branch)} <span style="color:${stColor};font-size:12px">${st}</span></div>`;
     div.onclick = () => selectMR(mr, div);
     const go = div.querySelector('.go-btn');
     if (go) go.onclick = (ev) => { ev.stopPropagation(); window.api.openUrl(mr.web_url || ''); };
@@ -779,6 +897,7 @@ async function renderHistoryMRList() {
 
 // ---- M3: 提交树 ----
 function selectCommit(commit, el) {
+  if (lockBlocked()) return;   // 审查中禁止切换审查对象
   currentTarget = { type: 'commit', sha: commit.hash };
   currentMR = null;
   currentHistory = null;      // 切到提交时清除历史回填目标
@@ -851,17 +970,31 @@ async function renderHistoryList() {
     const ts = `${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')} ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
     // 前几条评论摘要(path:line)
     const sm = (h.comments || []).slice(0, 3).map((c) => `${c.path}:${c.start_line}`).join(' · ');
-    div.innerHTML = `<div class="h"><span class="mr-badge" style="background:rgba(47,129,247,.15);color:var(--accent)">${esc(h.object || '审查')}</span>
-        <span style="float:right;color:var(--muted);font-size:11px">${ts}</span></div>
+    div.innerHTML = `<div class="h"><span class="mr-badge" style="background:rgba(47,129,247,.15);color:var(--accent)">${esc(h.object || '审查')}</span>${h.iid ? ' <a class="hist-open" style="color:var(--accent);cursor:pointer;margin-left:6px" title="打开该 MR 网页">🌐 进入 MR</a>' : ''}
+        <span style="float:right;color:var(--muted);font-size:12px">${ts}</span></div>
       <div class="s">${esc(h.repoProject || '')}${h.model ? ' · ' + esc(h.model) : ''} · <b>${h.commentsCount || 0}</b> 条评论</div>
       <div class="meta"><span>${sm ? esc(sm) : '无问题'}</span></div>`;
     div.onclick = () => selectHistory(h, div);
+    if (h.iid) {
+      const a = div.querySelector('.hist-open');
+      a.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        // 用记录所属仓库的 Git 地址打开 MR 网页(历史记录的 repoKey 匹配当前配置)
+        const repos = (window.__lastCfg && window.__lastCfg.repos) || [];
+        const repo = repos.find((r) => `${r.url || ''}|${r.project || ''}|${r.repoDir || ''}` === h.repoKey);
+        const base = ((repo && repo.url) || '').replace(/\/+$/, '');
+        const url = base ? base + '/' + (h.repoProject || (repo && repo.project)) + '/pulls/' + h.iid : '';
+        if (url) window.api.openUrl(url);
+        else log('⚠️ 未找到该 MR 所属仓库地址(记录仓库不在当前配置中), 无法打开', true);
+      });
+    }
     list.appendChild(div);
   });
 }
 
 /** 历史 Review: 查看某次的评论(可选择性回填到对应 MR/提交) */
 function selectHistory(h, el) {
+  if (lockBlocked()) return;   // 审查中禁止切换审查对象
   document.querySelectorAll('.commit-item').forEach((x) => x.classList.remove('sel'));
   if (el) el.classList.add('sel');
   currentTarget = null;
@@ -886,6 +1019,7 @@ function selectHistory(h, el) {
 
 async function doReview() {
   if (!currentTarget) return;
+  reviewLock = true;                    // 审查中锁定页面/对象切换
   $('btn-review').disabled = true;
   $('btn-post').disabled = true;
   $('btn-fix').disabled = true;
@@ -909,6 +1043,7 @@ async function doReview() {
   } finally {
     clearInterval(prog);
     $('btn-stop').disabled = true;
+    reviewLock = false;                 // 审查结束(成功/失败/停止)解锁切换
   }
   $('btn-review').disabled = false;
   if (!r.ok) {
@@ -1002,9 +1137,9 @@ function renderComments(comments, summary) {
     // 问题描述 + 问题代码片段 + 修复建议(有则显示更多内容)
     let bodyHtml = esc(c.contentZh || c.content || '');
     if (c.existing_code) bodyHtml += `<div class="code-sec neg"><span class="lbl">📄 问题代码</span>${esc(c.existing_code)}</div>`;
-    if (c.suggestion_code) bodyHtml += `<div class="code-sec pos"><span class="lbl">🔧 修复建议 <button class="cp-btn" data-code="s" title="复制修复代码" style="float:right;background:none;border:none;color:var(--accent);cursor:pointer;font-size:11px">📋 复制</button></span>${esc(c.suggestion_code)}</div>`;
+    if (c.suggestion_code) bodyHtml += `<div class="code-sec pos"><span class="lbl">🔧 修复建议 <button class="cp-btn" data-code="s" title="复制修复代码" style="float:right;background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px">📋 复制</button></span>${esc(c.suggestion_code)}</div>`;
     div.innerHTML = `<div class="head">
-        <input type="checkbox" class="post-cb" data-idx="${i}" checked title="勾选后才会回填此条" style="accent-color:var(--accent)">
+        <input type="checkbox" class="post-cb" data-idx="${i}" data-sev="${sevKey}" checked title="勾选后才会回填此条" style="accent-color:var(--accent)">
         <span class="sev ${sevKey}">${esc(sevLabel)}</span>
         <span class="file">${esc(c.path)}</span>
         <span class="line">L${c.start_line}${c.end_line && c.end_line !== c.start_line ? '-' + c.end_line : ''}</span>
@@ -1013,17 +1148,20 @@ function renderComments(comments, summary) {
       <div class="body">${bodyHtml}</div>`;
     box.appendChild(div);
   });
-  // 勾选统计 + 全选/全不选
+  // 勾选统计 + 快捷操作: 全选/全不选/按等级(严重/中等/轻微)
   const updateSel = () => {
     const cbs = box.querySelectorAll('.post-cb');
     const n = box.querySelectorAll('.post-cb:checked').length;
     const elapsed = (summary && summary.elapsed) ? `耗时 ${summary.elapsed} · ` : '';
+    const mk = (label, expr, title) => '<span title="' + title + '" style="cursor:pointer;color:var(--accent)" onclick="window.' + expr + '">' + label + '</span>';
     $('st-time').innerHTML = `${elapsed}☑ 回填 <b>${n}</b>/${cbs.length} · ` +
-      '<span style="cursor:pointer;color:var(--accent)" onclick="selectPostCb(true)">全选</span>/<span style="cursor:pointer;color:var(--accent)" onclick="selectPostCb(false)">全不选</span>';
+      mk('全选', 'selectPostCb(true)', '勾选全部') + ' / ' + mk('全不选', 'selectPostCb(false)', '取消全部') +
+      ' · 仅' + mk('严重', "selectSev('high')", '只勾选严重问题') + ' / ' + mk('中等', "selectSev('medium')", '只勾选中等问题') + ' / ' + mk('轻微', "selectSev('low')", '只勾选轻微问题');
   };
   box.querySelectorAll('.post-cb').forEach((cb) => cb.onchange = updateSel);
   updateSel();
   window.selectPostCb = (v) => { box.querySelectorAll('.post-cb').forEach((cb) => { cb.checked = v; }); updateSel(); };
+  window.selectSev = (v) => { box.querySelectorAll('.post-cb').forEach((cb) => { cb.checked = cb.dataset.sev === v; }); updateSel(); };
   // 修复建议"复制"按钮: 拷贝 suggestion_code 到剪贴板
   box.querySelectorAll('.cp-btn').forEach((btn) => {
     btn.onclick = (ev) => {
@@ -1049,7 +1187,7 @@ async function doPost() {
   try {
     if (currentHistory) {
       // 历史记录回填: MR 或 提交(携带原仓库 key 做一致校验)
-      if (currentHistory.iid) r = await window.api.postComments(currentHistory.iid, sel, currentHistory.repoKey);
+      if (currentHistory.iid) r = await window.api.postComments(currentHistory.iid, sel, currentHistory.repoKey, { ok: true, comments: currentHistory.comments });
       else if (currentHistory.sha) r = await window.api.commitPost(currentHistory.sha, sel, { ok: true, repoKey: currentHistory.repoKey, comments: currentHistory.comments });
       else return ($('btn-post').disabled = false, void log('该历史记录缺少回填目标(MR/提交)', true));
     } else if (currentTarget.type === 'mr') {
@@ -1095,13 +1233,15 @@ function setStatus(state, text) {
       menu.appendChild(it);
       return it;
     };
-    // 复制日志: 有选中内容则只复制选中, 否则复制全部
-    mkItem('📋 复制日志', async () => {
-      const sel = window.getSelection().toString();
-      const txt = (sel || area.textContent || '').trim();
-      if (!txt) return log('⚠️ 日志为空', true);
-      await window.api.copyText(txt);
-      log(`📋 已复制${sel ? '所选' : ''}日志 (${txt.length} 字符)`);
+    // 复制日志: 与 Ctrl+C 完全一致 —— 直接复制浏览器当前选区(所见即所得)
+    mkItem('📋 复制所选(同 Ctrl+C)', () => {
+      const sel = window.getSelection();
+      const txt = sel ? sel.toString() : '';
+      if (!sel || sel.isCollapsed || !txt.trim()) return log('请先在日志中选中文字, 再右键「复制所选」(或直接 Ctrl+C)', true);
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }   // 与 Ctrl+C 同一选区来源
+      if (!ok) { window.api.copyText(txt); ok = true; }                       // 兜底
+      log(`📋 已复制所选日志 (${txt.length} 字符)`);
     });
     const item = mkItem('🧹 清空日志', () => { area.innerHTML = ''; log('🧹 日志已清空'); });
     document.body.appendChild(menu);
@@ -1126,6 +1266,7 @@ document.addEventListener('keydown', (e) => {
 
 // ---- 事件 ----
 function openSettings() {
+  if (lockBlocked()) return;   // 审查中禁止进设置
   // 进设置拉取最新配置(模型/仓库等以当前持久化值为准), 不重复获取模型列表
   window.api.getConfig().then((cfg) => {
     loadSettingsUI(cfg || {});
@@ -1137,6 +1278,7 @@ function openSettings() {
 }
 $('nav-settings').onclick = openSettings;
 $('nav-home').onclick = () => {
+  if (lockBlocked()) return;   // 审查中禁止返回主页
   if (document.getElementById('settings-view').style.display !== 'none') {
     showSettings(false);                 // 从设置返回主页
   } else {
@@ -1219,6 +1361,15 @@ function refreshAdminStatus() {
 bindSettingsNav();
 refreshAdminStatus();
 $('btn-save-settings').onclick = saveAllSettings;
+// 定时任务: 创建按钮; 任务列表启停/删除在 renderSchedList 内绑定
+$('btn-sched-create').onclick = createSched;
+// 客户端定时任务事件: 对应仓库发现新 MR → 当前正看该仓库才刷新列表; 每次扫描 → 刷新列表末次触发时间
+window.api.onMrsRefresh(async (repoIdx) => {
+  if (repoIdx !== undefined && Number(repoIdx) !== Number($('top-repo').value)) return;   // 非当前仓库, 不打扰
+  const r = await window.api.listMRs();
+  if (r.ok) renderMRs(r.mrs);
+});
+window.api.onSchedTick(() => { renderSchedList(); });
 $('btn-test').onclick = doTest;
 $('btn-refresh').onclick = doRefresh;
 // 主题/字号即时预览
@@ -1247,6 +1398,7 @@ $('btn-stop').onclick = async () => {
 $('btn-post').onclick = doPost;
 $('btn-fix').onclick = doFix;
 function switchLeftTab(activeId) {
+  if (lockBlocked()) return;   // 审查中禁止切换页签
   document.querySelectorAll('#left-nav .nav-item').forEach((b) => b.classList.remove('active'));
   document.getElementById(activeId).classList.add('active');
   const map = { 'tab-mr': 'panel-mr', 'tab-mrhistory': 'panel-mrhistory', 'tab-commits': 'panel-commits', 'tab-history': 'panel-history' };
@@ -1278,6 +1430,12 @@ $('btn-flush').onclick = async () => {
 $('btn-load-commits').onclick = loadCommits;
 $('branch-all').onchange = () => { if ($('branch-all').checked) loadCommits(); };
 window.api.onLog((line) => log(line));
+// 主进程因历史回填自动切换仓库 → 同步顶部下拉 + 刷新列表
+window.api.onRepoSwitched(async (idx) => {
+  $('top-repo').value = String(idx);
+  switchLeftTab('tab-mr');
+  if (typeof doRefresh === 'function') doRefresh();
+});
 
 init();
 

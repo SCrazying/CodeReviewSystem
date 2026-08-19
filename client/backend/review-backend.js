@@ -7,6 +7,21 @@ const path = require('path');
 const OCR_JS_NAME = 'ocr.js';
 const AI_MARK = '🤖 AI 审查';
 
+/** 评论正文统一包含: 问题描述 + 问题代码 + 修复建议(推送 GitLab/Gitea 时带上, 研发可直接参考/摘取) */
+function langFromPath(p) {
+  const ext = String(p || '').split('.').pop().toLowerCase();
+  const map = { cpp: 'cpp', cxx: 'cpp', h: 'cpp', hpp: 'cpp', cc: 'cpp', c: 'c', java: 'java', py: 'python', js: 'javascript', ts: 'typescript', jsx: 'jsx', tsx: 'tsx', go: 'go', rs: 'rust', cs: 'csharp', php: 'php', rb: 'ruby', sh: 'bash', ps1: 'powershell', bat: 'bat', yml: 'yaml', yaml: 'yaml', json: 'json', xml: 'xml', sql: 'sql', kt: 'kotlin', swift: 'swift', vue: 'vue', html: 'html', css: 'css', scss: 'css' };
+  return map[ext] || '';
+}
+function fmtCommentBody(c, prefix = true) {
+  const head = prefix ? `${AI_MARK} [${c.severity || 'info'} · ${c.category || ''}]` : `${AI_MARK}(${c.severity || ''} · ${c.category || ''})`;
+  let b = `${head}\n\n${c.contentZh || c.content || ''}`;
+  const lang = langFromPath(c.path);
+  if (c.existing_code) b += `\n\n**📄 问题代码**\n\`\`\`${lang}\n${c.existing_code}\n\`\`\``;
+  if (c.suggestion_code) b += `\n\n**🔧 修复建议**\n\`\`\`${lang}\n${c.suggestion_code}\n\`\`\``;
+  return b;
+}
+
 class ReviewBackend {
   constructor(config, log = () => {}) {
     this.config = config;
@@ -488,7 +503,7 @@ class ReviewBackend {
       log(`共 ${review.comments.length} 条, 去重跳过 ${review.comments.length - fresh.length} 条`);
       let posted = 0;
       for (const c of fresh) {
-        const body = `🤖 AI 审查(${c.severity || ''} · ${c.category || ''})\n\n${c.contentZh || c.content || ''}${c.suggestion_code ? '\n\n建议修复:\n```\n' + c.suggestion_code + '\n```' : ''}`;
+        const body = fmtCommentBody(c, false);
         try {
           if (!this.isGitea) {
             // GitLab: POST /repository/commits/:sha/comments (行级: note + path + line + line_type)
@@ -586,7 +601,7 @@ class ReviewBackend {
           commit_id: headSha,
           event: 'COMMENT',
           comments: fresh.map((c) => ({
-            body: `${AI_MARK} [${c.severity || 'info'} · ${c.category || ''}]\n\n${c.contentZh || c.content || ''}`,
+            body: fmtCommentBody(c),
             path: c.path,
             new_position: c.start_line,
           })),
@@ -594,7 +609,7 @@ class ReviewBackend {
         await this._api('POST', `/pulls/${iid}/reviews`, payload);
       } else {
         for (const c of fresh) {
-          const body = `${AI_MARK} [${c.severity || 'info'} · ${c.category || ''}]\n\n${c.contentZh || c.content || ''}`;
+          const body = fmtCommentBody(c);
           try {
             await this._api('POST', `/merge_requests/${iid}/discussions`, {
               body,

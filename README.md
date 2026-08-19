@@ -1,56 +1,51 @@
 # CodeReviewSystem
 
-AI 代码审查工作台 + 审查数据管理平台
+AI 代码审查工作台 —— **Electron 客户端 + Node/Express 单机服务端 + PostgreSQL**。对 GitLab/Gitea 仓库的 MR / 提交自动做 AI 审查，结论(问题 + 修复建议)回填 GitLab 评论区；支持基于源分支的**自动修复(每问题一个增量 commit)并推送远端**，研发可直接 cherry-pick。
 
-- **client/**:Electron 桌面客户端(免安装绿色版)
-  - 交付: `client/dist/CodeReviewTool-win-x64.zip` → 解压运行 `CodeReviewTool.exe`
-  - **ocr 已内置**: 软件目录自带 open-code-review(47M, asar.unpacked), 内网/离线无需再 npm install
-  - 功能:
-    - 每日进入卡控(服务端授权门禁) + 本地缓存推送(离线不丢)
-    - MR 全自动审查 + 评论自动回填 Git(Gitea/GitLab 双后端)
-    - **提交树**(分支切换 / 全部分支 / 🔀MR 标记) + **单提交审查**
-    - **自动修复**: 基于 MR 原始分支创建 `fix/ai/<branch>-<mrId>`, 每个问题一个 commit(仅本地, 研发决定是否推远端)
-      - 小文件(≤200 行)整文件重写模式(行号无关, 高可靠); 大文件 unified diff + git apply 校验
-      - 修复内容校验(相似度/行数/无变化检测) + 失败自动重试, 坏补丁安全跳过不破坏代码
-    - **设置中心(Cursor 风格)**: 左侧分组导航 + 右侧内容区 + 搜索设置
-      - **主页↔设置切换**: 设置导航首项"🏠 主页"与顶部"← 返回应用", 与主页 ⚙设置 互为切换
-      - **多仓库管理**: 设置页维护仓库列表(名称/Git地址/Token/项目/本地目录), 支持增删改 + "设为当前"; 主页顶部下拉一键切换仓库(后端即时切换, MR/提交树联动刷新)
-      - **模型服务配置**: 常规面板填写 协议(http/https)+ API 地址 + API Key → 一键获取模型列表(OpenAI 兼容 /v1/models)→ 下拉选择审查模型; **审查 / 自动修复 / 中文翻译共用同一模型**
-      - **超级管理员授权**: 高级面板输入密码 → 永久免服务端验证(离线可用, 重启免认证, 可注销恢复); 密码 sha256 本地校验
-      - **审查结果中文**: 审查完成后自动用审查模型翻译评论为中文(界面显示 + Git 回填均中文, 失败保留原文)
-      - 开关项: 自动回填评论、自动修复分支(审查完成自动执行)
-      - 外观: 深色 / 浅色 / 跟随系统 主题(全组件适配, 无深色残留) + 字号(小/中/大), 即时生效持久化
-    - Token / 请求次数记录, 自动上报服务端
-- **server/**:Node.js 服务端(REST API + 管理 Web + PostgreSQL)
-  - 一键启动: `server/start-server.bat`
-  - 管理后台: `http://127.0.0.1:3001/`(admin / admin123)
-  - **定时任务**: 选仓库 + cron 周期审查 open MRs, 执行历史可查, 支持手动触发
-  - 统计量化: 审查次数 / 问题严重分布 / 类别 TOP / Token 用量趋势 / 修复记录
-- **docs/**: PRD、方案设计、系统设计
+## 功能特性
 
-## 快速启动
+- 🚀 **多仓库**: 待合入 MR / 历史 MR / 提交树 / 历史 Review 四页签, 多仓库切换
+- 🤖 **AI 审查**: native ocr 直调, 输出 严重级别 + 问题代码 + 修复建议; 支持中文输出、并发、超时(默认60min)可调, 可随时停止
+- 💬 **回填评论**: 选择性回填(勾选/按严重等级)、历史结果二次回填、自动切换所属仓库、评论含问题代码+修复建议, 服务器自动去重
+- 🔧 **自动修复**: 基于 MR **源分支**建 `fix/ai/...`, 每问题一个 `【fix】` 增量 commit(`【问题单号】【影响性】` 描述), **默认推送远端**, 研发 git fetch/cherry-pick 即用
+- ⏰ **客户端定时任务**: 按仓库创建多个扫描任务, 支持频率(30min~每天)与每日开始时间, 列表启停; 不依赖服务器定时
+- 🧳 **零配置分发**: ocr 配置随程序目录走(便携), 模型 Key 保存即校验(不读系统环境变量), 内网拷贝目录即用
+- 🎨 **Cursor 风格 UI**: 左导航 + 内容区, 深浅主题, Ctrl+=/- 缩放, 日志选中复制, 内置使用手册
 
-```bash
-# 1. 服务端(PG 运行于 5432, 库名 codereview)
-cd server && start-server.bat
-# → 管理后台创建"客户端 Token"(设置页生成)
+## 架构
 
-# 2. 客户端
-解压 client/dist/CodeReviewTool-win-x64.zip → 运行 CodeReviewTool.exe
-# → 设置: Git 服务地址/Token + 仓库; 服务端地址 + 客户端 Token
-# → 🛡 卡控校验通过后: 刷新 MR / 提交树 → 审查 → 回填/自动修复
-
-# 3. 定时任务(可选)
-管理后台 → ⏰ 定时任务 → 创建(选仓库 + cron)→ 启用
+```
+Electron 客户端 ──(卡控/记录队列)──▶ Express + PostgreSQL(服务端 :3001)
+   └─▶ ocr(native) ──▶ 模型API ──▶ GitLab/Gitea(评论/修复分支)
 ```
 
-## 里程碑
+## 快速开始
 
-- [x] M1 服务端基础(建表/API/授权/上报/统计)
-- [x] M5 管理 Web(总览/记录/分类/用量)
-- [x] M2 客户端接入服务端(每日卡控/本地缓存推送/审查门禁)
-- [x] M3 提交树 + MR/单提交审查 + 回填
-- [x] M4 自动修复分支(unified diff + git apply 校验, 每问题一 commit)
-- [x] M6 服务端定时任务(API + node-cron 调度 + Web 管理)
+### 客户端
+1. `cd client && npm install`(需要 `@alibaba-group/open-code-review` 以自带 ocr native)
+2. `npm start`(本机开发)或使用 `dist/CodeReviewTool-win-x64.zip`(win-unpacked, 已含 ocr)
+3. 打开后: 设置 → 常规 → 填 **API 地址 / Key / 审查模型** → 保存(自动校验)
+4. 设置 → Git 仓库 → 添加仓库(Git 地址 / Token / 本地目录)后即可审查
 
-详见 docs/
+### 服务端(可选, 用于卡控与记录)
+```
+cd server
+createdb codereview && node src/init-db.js && node src/init-admin.js
+npm start                 # :3001, 管理后台 http://127.0.0.1:3001/
+```
+客户端在 设置 → 服务端 填服务地址 + Token。
+
+### 打包与发版
+```
+cd client
+export ELECTRON_BUILDER_BINARIES_MIRROR="https://gh-proxy.com/..."
+node_modules/.bin/electron-builder --win dir -c.win.signAndEditExecutable=false
+powershell Compress-Archive dist\win-unpacked\* ...  # 打 zip 前先 taskkill 残留实例
+```
+
+## 文档
+- [PRD](docs/PRD.md) · [方案设计](docs/方案设计.md) · [系统设计](docs/系统设计.md)
+- 应用内: 设置 → 使用手册(完整操作说明)
+
+## 版本
+- 见 Git tag(`v1.1.x`); 最新 master 为准。

@@ -46,6 +46,7 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1360, height: 860, minWidth: 1100, minHeight: 700,
     title: 'CodeReviewTool - AI 代码审查',
+    icon: path.join(__dirname, 'build', 'icon.ico'),
     autoHideMenuBar: true, backgroundColor: '#0d1117',
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
@@ -107,10 +108,142 @@ ipcMain.handle('ui:zoom', (e, dir) => {
   } catch (err) { return { ok: false, error: err.message }; }
 });
 
+// ---- 客户端定时任务: 按仓库创建多个任务, 支持指定开始时间 + 启停 (不用服务器端定时) ----
+let schedTimer = null;
+let schedState = {};   // taskId -> { lastTs, lastIds:Set }
+function getSchedules() { const c = loadConfig(); return Array.isArray(c.schedules) ? c.schedules : []; }
+function saveSchedules(list) { const c = loadConfig(); c.schedules = list; fs.writeFileSync(getUserConfigPath(), JSON.stringify(c, null, 2), 'utf-8'); }
+function fmtInterval(m) {
+  if (m % 1440 === 0) return `${m / 1440} 天`;
+  if (m % 60 === 0) return `${m / 60} 小时`;
+  return `${m} 分钟`;
+}
+function fmtStart(t) { return t && /^\d{1,2}:\d{2}$/.test(String(t)) ? String(t) : '立即'; }
+/** 下一触发时刻: 有开始时间则从每天该时刻首算(已过→明天), 之后按频率递增; 无则立即开始 */
+function nextScanTime(task, st) {
+  const interval = (Number(task.intervalMin) || 60) * 60000;
+  if (st.lastTs) return st.lastTs + interval;
+  const start = String(task.startTime || '').trim();
+  if (/^\d{1,2}:\d{2}$/.test(start)) {
+    const [hh, mm] = start.split(':').map(Number);
+    const d = new Date(); d.setHours(hh, mm, 0, 0);
+    if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
+    return d.getTime();
+  }
+  return Date.now();
+}
+function restartScheduler() {
+  if (schedTimer) { clearInterval(schedTimer); schedTimer = null; }
+  const tasks = getSchedules().filter((t) => t.enabled);
+  if (!tasks.length) return;   // 无启用任务
+  schedTimer = setInterval(schedTick, 60 * 1000);
+  pushLog(`⏰ 客户端定时任务已启动: ${tasks.length} 个启用任务`);
+  schedTick();
+}
+async function schedTick() {
+  const tasks = getSchedules().filter((t) => t.enabled);
+  const now = Date.now();
+  for (const t of tasks) {
+    const st = schedState[t.id] = schedState[t.id] || { lastTs: 0, lastIds: new Set() };
+    if (now >= nextScanTime(t, st)) {
+      st.lastTs = now;
+      await scanRepoForSched(t, st);
+      if (win && !win.isDestroyed()) win.webContents.send('schedule:tick', { id: t.id, lastTs: now, name: t.name });
+    }
+  }
+}
+/** 用独立 backend 扫描指定仓库(不打断当前激活仓库), 发现新 MR 通知渲染进程 */
+async function scanRepoForSched(task, st) {
+  const idx = Number(task.repoIndex);
+  const cfg = loadConfig();
+  const repos = Array.isArray(cfg.repos) ? cfg.repos : [];
+  if (!repos[idx]) return pushLog(`⏰ [${task.name}] 仓库索引 ${idx} 不存在, 已跳过`);
+  const repo = { ...cfg, url: repos[idx].url || cfg.url, token: repos[idx].token || cfg.token, project: repos[idx].project || cfg.project, repoDir: repos[idx].repoDir || cfg.repoDir };
+  let b = null;
+  try {
+    b = new ReviewBackend(repo, () => {});
+    const r = await b.listMRs();
+    if (r.ok) {
+      const ids = new Set(r.mrs.map((m) => m.iid));
+      const fresh = st.lastIds.size ? r.mrs.filter((m) => !st.lastIds.has(m.iid)) : [];
+      st.lastIds = ids;
+      pushLog(`⏰ [${task.name}] ${repos[idx].name || repos[idx].project}: ${r.mrs.length} 个待合入 MR${fresh.length ? ' · 🆕 新增 ' + fresh.map((m) => '!' + m.iid).join(', ') : ''}`);
+      if (fresh.length && win && !win.isDestroyed()) win.webContents.send('mrs:refresh', idx);
+    } else {
+      pushLog(`⏰ [${task.name}] 扫描失败: ${r.error || '未知'}`);
+    }
+  } catch (e) {
+    pushLog(`⏰ [${task.name}] 扫描异常: ${(e && e.message || e + '').slice(0, 140)}`);
+  } finally {
+    if (b) b.close && b.close();
+  }
+}
+ipcMain.handle('schedule:list', () => {
+  return getSchedules().map((t) => ({ ...t, lastTs: schedState[t.id] ? schedState[t.id].lastTs : 0 }));
+});
+ipcMain.handle('schedule:create', (e, t) => {
+  if (!t || !String(t.name || '').trim()) return { ok: false, error: '请填写任务名称' };
+  const id = 's' + Date.now() + Math.floor(Math.random() * 1000);
+  const list = getSchedules();
+  list.push({ id, name: String(t.name).trim(), repoIndex: Number(t.repoIndex) || 0, intervalMin: Number(t.intervalMin) || 60, startTime: String(t.startTime || '').trim(), enabled: t.enabled !== false });
+  saveSchedules(list);
+  restartScheduler();
+  pushLog(`⏰ 已创建定时任务「${list[list.length - 1].name}」`);
+  return { ok: true, id };
+});
+ipcMain.handle('schedule:update', (e, id, patch) => {
+  const list = getSchedules().map((t) => (t.id === id ? { ...t, ...patch } : t));
+  saveSchedules(list);
+  if (typeof patch === 'object') {
+    if (patch.enabled === false) delete schedState[id];       // 停用即清状态(下次启用重新计数)
+  }
+  restartScheduler();
+  return { ok: true };
+});
+ipcMain.handle('schedule:delete', (e, id) => {
+  const list = getSchedules().filter((t) => t.id !== id);
+  saveSchedules(list);
+  delete schedState[id];
+  restartScheduler();
+  return { ok: true };
+});
+// 兼容旧字段: 旧版单任务(scheduleInterval)迁移到 schedules(如用户曾配置)
+(function migrateSchedules() {
+  const c = loadConfig();
+  const old = Number(c.scheduleInterval) || 0;
+  if (old >= 10 && !getSchedules().length) {
+    saveSchedules([{ id: 's_legacy', name: '定时扫描待合入 MR', repoIndex: Number(c.activeRepo) || 0, intervalMin: old, startTime: '', enabled: true }]);
+    c.scheduleInterval = 0;
+    fs.writeFileSync(getUserConfigPath(), JSON.stringify(c, null, 2), 'utf-8');
+  }
+})();
+
 // 当前激活仓库的唯一标识(防跨仓库误用审查结果, 不同仓库同名 MR iid 相同)
 function currentRepoKey() {
   const c = activeRepoConfig(loadConfig());
   return `${c.url || ''}|${c.project || ''}|${c.repoDir || ''}`;
+}
+function repoKeyOf(r) { return `${r.url || ''}|${r.project || ''}|${r.repoDir || ''}`; }
+function repoIndexByKey(key) {
+  const repos = Array.isArray(loadConfig().repos) ? loadConfig().repos : [];
+  for (let i = 0; i < repos.length; i++) if (repoKeyOf(repos[i]) === key) return i;
+  return -1;
+}
+/** 历史回填自动切换仓库: 设为激活仓库 + 重建 backend, 通知渲染进程刷新 */
+function activateRepoIndex(i) {
+  const cfg = loadConfig();
+  cfg.activeRepo = i;
+  const active = (Array.isArray(cfg.repos) ? cfg.repos[i] : null) || {};
+  if (active.url) cfg.url = active.url;
+  if (active.token) cfg.token = active.token;
+  if (active.project) cfg.project = active.project;
+  if (active.repoDir) cfg.repoDir = active.repoDir;
+  fs.writeFileSync(getUserConfigPath(), JSON.stringify(cfg, null, 2), 'utf-8');
+  backend = new ReviewBackend(cfg, pushLog);
+  if (fixEngine) fixEngine = new FixEngine(cfg, pushLog);
+  pushLog(`🔄 已自动切换到记录所属仓库: ${active.name || active.project || repoKeyOf(active)}`);
+  if (win && !win.isDestroyed()) win.webContents.send('repo:switched', i);
+  return true;
 }
 
 // ---- 本地缓存推送 ----
@@ -198,6 +331,8 @@ ipcMain.handle('config:save', async (e, cfg) => {
     // 外观
     theme: String(cfg.theme || 'dark').trim(),
     fontSize: String(cfg.fontSize || 'medium').trim(),
+    // 客户端定时任务: 扫描待合入 MR(分钟, 0=关闭)
+    scheduleInterval: Number(cfg.scheduleInterval) >= 0 ? Number(cfg.scheduleInterval) : 0,
     // 多仓库
     repos,
     activeRepo: typeof cfg.activeRepo === 'number' ? cfg.activeRepo : (prev.activeRepo || 0),
@@ -216,6 +351,7 @@ ipcMain.handle('config:save', async (e, cfg) => {
   if (queue) queue.setMaxRetries(safe.pushMaxTries);         // 同步推送重试上限
   const r = await runDailyGate();
   if (r.ok) flushQueue();
+  restartScheduler();          // 保存设置后按新频率重启客户端定时任务
   return { ok: true, gate: r, activeRepo: safe.activeRepo };
 });
 
@@ -404,22 +540,43 @@ async function autoFix(iid, review) {
   return fr;
 }
 
-ipcMain.handle('review:post', async (e, iid, comments, expectRepoKey) => {
+ipcMain.handle('review:post', async (e, iid, comments, expectRepoKey, historyReview) => {
   if (!gate || !gate.authorized) return { ok: false, error: '今日未通过服务端授权' };
   if (!backend) return { ok: false, error: '请先保存配置' };
-  // 历史记录回填: 若记录了所属仓库, 与当前激活仓库不一致则拒绝(防止把评论发错仓库)
+  // 历史记录回填: 若记录所属仓库与当前不一致, 命中已配置仓库则自动切换, 未配置则提示
   if (expectRepoKey && expectRepoKey !== currentRepoKey()) {
-    const cur = activeRepoConfig(loadConfig());
-    return { ok: false, error: `该记录属于其他仓库, 请先在顶部切换到对应仓库后再回填(当前: ${(cur && cur.project) || '?'})` };
+    const ri = repoIndexByKey(expectRepoKey);
+    if (ri < 0) {
+      const cur = activeRepoConfig(loadConfig());
+      return { ok: false, error: `该记录所属仓库不在当前配置中, 请先在「设置 → Git 仓库」添加后重试(当前: ${(cur && cur.project) || '?'})` };
+    }
+    activateRepoIndex(ri);
   }
   // 优先复用最近一次审查结果: 必须同仓库 + 同 MR
-  const reuse = lastReview && lastReview.mrId === Number(iid) && lastReview.ok && (!lastReview.repoKey || lastReview.repoKey === currentRepoKey());
-  if (reuse) {
-    pushLog(`回填评论到 MR !${iid}(复用最近审查结果 ${lastReview.comments.length} 条, 已选 ${(comments || []).length} 条)...`);
+  let review = null;
+  if (historyReview && historyReview.ok) {
+    // 历史记录: 直接用其中评论(选中子集), 不再重新审查
+    review = { ...historyReview, mrId: Number(iid), comments: Array.isArray(comments) ? comments : (historyReview.comments || []) };
+    pushLog(`回填评论到 MR !${iid}(历史记录, 已选 ${review.comments.length} 条)...`);
   } else {
-    pushLog(`未找到 MR !${iid} 的审查结果, 先审查本 MR(可能要几分钟)...`);
+    const reuse = lastReview && lastReview.mrId === Number(iid) && lastReview.ok && (!lastReview.repoKey || lastReview.repoKey === currentRepoKey());
+    if (reuse) {
+      review = lastReview;
+      if (Array.isArray(comments)) review.comments = comments;
+      pushLog(`回填评论到 MR !${iid}(复用最近审查结果, 已选 ${review.comments.length} 条)...`);
+    } else {
+      // 内存中没有 → 从本地保存的历史审查结果找回(按 MR + 当前仓库), 不再重新审查
+      const hist = loadHistory().slice().reverse().find((h) => Number(h.iid) === Number(iid) && (!h.repoKey || h.repoKey === currentRepoKey()));
+      if (hist && Array.isArray(hist.comments) && hist.comments.length) {
+        const hc = Array.isArray(comments) ? comments : hist.comments;
+        review = { ...hist, ok: true, mrId: Number(iid), comments: hc };
+        pushLog(`回填评论到 MR !${iid}(复用本地保存的历史审查结果 ${hc.length} 条, 不再重新审查)...`);
+      } else {
+        pushLog(`未找到 MR !${iid} 的审查结果, 先审查本 MR(可能要几分钟)...`);
+      }
+    }
   }
-  const r = await backend.postComments(iid, (line) => pushLog('  ' + line), reuse ? lastReview : null, comments || null);
+  const r = await backend.postComments(iid, (line) => pushLog('  ' + line), review, comments || null);
   pushLog(r.ok ? `✅ 回填完成: ${r.posted} 条评论` : `❌ 回填失败: ${r.error || '未知原因'}`);
   return r;
 });
@@ -490,11 +647,20 @@ ipcMain.handle('commit:post', async (e, sha, comments, historyReview) => {
     // 历史记录: 直接用其评论(子集)
     review = { ok: true, commitSha: sh, comments: Array.isArray(comments) ? comments : (historyReview.comments || []), repoKey: historyReview.repoKey };
   } else {
-    // 常规: 复用最近一次该提交的审查结果
+    // 常规: 复用最近一次该提交的审查结果; 内存没有 → 从本地历史(按提交 sha)找回
     const reuse = lastReview && lastReview.commitSha === sh && lastReview.ok && (!lastReview.repoKey || lastReview.repoKey === currentRepoKey());
-    if (!reuse) return { ok: false, error: '请先审查该提交, 再回填评论' };
-    review = lastReview;
-    if (Array.isArray(comments)) review.comments = comments;
+    if (reuse) {
+      review = lastReview;
+      if (Array.isArray(comments)) review.comments = comments;
+    } else {
+      const hist = loadHistory().slice().reverse().find((h) => h.sha === sh);
+      if (hist && Array.isArray(hist.comments) && hist.comments.length) {
+        review = { ...hist, ok: true, commitSha: sh, comments: Array.isArray(comments) ? comments : hist.comments, repoKey: hist.repoKey };
+        pushLog(`回填提交评论(${sh.slice(0, 8)}, 复用本地保存的历史审查结果 ${review.comments.length} 条)...`);
+      } else {
+        return { ok: false, error: '未找到该提交的审查结果, 请先审查再回填' };
+      }
+    }
   }
   if (!Array.isArray(review.comments) || review.comments.length === 0) return { ok: true, posted: 0, message: '未选择要回填的评论' };
   pushLog(`回填提交评论(${sh.slice(0, 8)}, ${review.comments.length} 条)...`);
@@ -681,6 +847,8 @@ app.whenReady().then(() => {
   createWindow();
   // 每日进入卡控
   runDailyGate();
+  // 客户端定时任务(扫描待合入 MR)随应用启动
+  restartScheduler();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
