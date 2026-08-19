@@ -16,7 +16,8 @@ contextBridge.exposeInMainWorld('api', {
   fixCommit: (sha) => ipcRenderer.invoke('fix:commit', sha),
   openUrl: (url) => ipcRenderer.invoke('open:url', url),
   openCommit: (sha) => ipcRenderer.invoke('open:commit', sha),
-  copyText: (t) => ipcRenderer.invoke('clip:write', t),
+  copyText: (text) => ipcRenderer.invoke('clip:write', text),
+  zoom: (dir) => ipcRenderer.invoke('ui:zoom', dir),
   // M2: 卡控 + 队列
   gateStatus: () => ipcRenderer.invoke('gate:status'),
   gateRecheck: () => ipcRenderer.invoke('gate:recheck'),

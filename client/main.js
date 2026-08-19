@@ -50,6 +50,8 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false },
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  // 启动恢复上次界面缩放级别(Ctrl+Plus/Minus 调整, 存 uiZoom)
+  try { const z = loadConfig().uiZoom; if (typeof z === 'number' && !isNaN(z)) win.webContents.setZoomLevel(Math.max(-2, Math.min(3, z))); } catch { }
 }
 
 function pushLog(text) {
@@ -87,6 +89,22 @@ function saveReviewHistory(review, meta) {
 /** 历史列表(新→旧) */
 ipcMain.handle('reviews:list', () => {
   return loadHistory().slice().reverse();
+});
+
+/** 界面缩放: Ctrl+Plus / Ctrl+Minus(与系统无关, 主进程 setZoomLevel) */
+ipcMain.handle('ui:zoom', (e, dir) => {
+  try {
+    const web = win && win.webContents;
+    if (!web) return { ok: false, error: '窗口未就绪' };
+    const cur = web.getZoomLevel();
+    const next = dir === 0 ? 0 : Math.max(-2, Math.min(3, Math.round((cur + dir) * 2) / 2));
+    web.setZoomLevel(next);
+    // 持久化缩放级别(下次启动恢复)
+    const c = loadConfig();
+    c.uiZoom = next;
+    try { fs.writeFileSync(getUserConfigPath(), JSON.stringify(c, null, 2)); } catch { }
+    return { ok: true, zoom: next };
+  } catch (err) { return { ok: false, error: err.message }; }
 });
 
 // 当前激活仓库的唯一标识(防跨仓库误用审查结果, 不同仓库同名 MR iid 相同)
