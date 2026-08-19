@@ -61,11 +61,13 @@ class ReviewBackend {
       iid: mr.iid, title: mr.title,
       source_branch: mr.source_branch, target_branch: mr.target_branch,
       sha: mr.sha, web_url: mr.web_url,
+      state: String(mr.state || '').toLowerCase(), updated_at: mr.updated_at || mr.merged_at || null,
     };
     return {
       iid: mr.number, title: mr.title,
       source_branch: (mr.head || {}).ref, target_branch: (mr.base || {}).ref,
       sha: (mr.head || {}).sha, web_url: mr.html_url,
+      state: String(mr.state || '').toLowerCase(), updated_at: mr.updated_at || mr.merged_at || null,
     };
   }
 
@@ -90,6 +92,22 @@ class ReviewBackend {
       const list = await this._api('GET', suffix);
       if (!Array.isArray(list)) return { ok: false, error: '返回格式异常' };
       return { ok: true, mrs: list.map((m) => this._normalizeMr(m)) };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }
+
+  /** 历史 MR: 已合并/已关闭的 MR 列表 */
+  async listHistoryMRs() {
+    try {
+      const suffix = this.isGitea
+        ? `/pulls?state=all&limit=100`
+        : `/merge_requests?state=all&per_page=100`;
+      const list = await this._api('GET', suffix);
+      if (!Array.isArray(list)) return { ok: false, error: '返回格式异常' };
+      const hist = list.map((m) => this._normalizeMr(m))
+        .filter((m) => String(m.state).toLowerCase() === 'merged' || String(m.state).toLowerCase() === 'closed');
+      return { ok: true, mrs: hist };
     } catch (e) {
       return { ok: false, error: e.message };
     }
@@ -713,18 +731,38 @@ function syncOcrConfig(cfg, log = () => {}) {
   } catch (e) { return false; }
 }
 
+/** 从客户端配置解析 LLM 三元组(url/key/model), 供 exe 直接使用 */
+function _llmVals(cfg) {
+  const url = String((cfg && cfg.llmBaseUrl) || '').trim();
+  const model = String((cfg && cfg.model) || '').trim() || 'deepseek-v4-flash';
+  let key = String((cfg && cfg.llmApiKey) || '').trim();
+  if (!key) {
+    try {
+      const pc = path.join(ocrPortableHome(), '.opencodereview', 'config.json');
+      const oc = JSON.parse(fs.readFileSync(pc, 'utf8'));
+      key = ((oc.custom_providers || {}).app || {}).api_key || '';
+    } catch { }
+  }
+  if (!key) key = process.env.HERMES_CUSTOM_OPENCODE_API_KEY || '';
+  return { url, model, key };
+}
+
 /** 直接执行 native opencodereview.exe(跳过 js 启动器). 配置目录 = 客户端根(exe 相对, 内网便携) */
 function runNative(exePath, args, cwd, cfg, log = () => {}, timeoutMs = 60 * 60 * 1000) {
   ensurePortableConfig();
-  syncOcrConfig(cfg, log);   // 审查前: 客户端 LLM 设置 → ocr 配置(用户无需全局配置)
-  const model = String((cfg && cfg.model) || '').trim() || 'deepseek-v4-flash';
+  syncOcrConfig(cfg, log);   // 审查前: 客户端 LLM 设置 → ocr 便携配置(双保险)
+  const { url, model, key } = _llmVals(cfg);
+  if (!url) log('⚠️ 未配置模型 API 地址(设置 → 模型服务 → API 地址), 请先填写并「保存全部设置」');
   const env = {
     ...process.env,
     // 关键: 覆盖主目录, 使 ocr 把配置写到便携目录(客户端根/.opencodereview), 随程序走
     USERPROFILE: ocrPortableHome(),
     HOME: ocrPortableHome().replace(/\\/g, '/'),
+    // exe 官方认可的 LLM endpoint 三件套(报错信息亲述), 直接给, 不依赖 config 是否被读到
+    OCR_LLM_URL: url,
+    OCR_LLM_TOKEN: key,
+    OCR_LLM_MODEL: model,
     OCR_MODEL: model,
-    OCR_LLM_MODEL: model,                  // 部分 ocr 版本读 env 覆盖模型
     OCR_NO_UPDATE: '1',
   };
   return runChild(exePath, args, cwd, model, env, timeoutMs);

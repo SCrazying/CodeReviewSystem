@@ -207,11 +207,24 @@ class FixEngine {
       }
     }
 
+    // 4. 推送修复分支到远端(设置「修复后推送远端」开启时)
+    let pushed = false;
+    if (this.config.autoPushFix && applied > 0) {
+      this.log(`🚀 推送修复分支 ${fixBranch} 到远端...`);
+      try {
+        const pr = await this._git(['push', '-u', 'origin', fixBranch]);
+        if (pr.ok) { pushed = true; this.log(`✅ 已推送: origin/${fixBranch}`); }
+        else this.log(`⚠️ 推送失败: ${(pr.stderr || '').slice(0, 200)}`);
+      } catch (e) { this.log(`⚠️ 推送异常: ${String(e.message || e).slice(0, 150)}`); }
+    }
+
     return {
       ok: applied > 0,
-      fixBranch, commits, applied,
+      fixBranch, commits, applied, pushed,
       message: applied > 0
-        ? `✅ 自动修复完成: 分支 ${fixBranch}, 应用 ${applied}/${issues.length} 个修复, ${commits.length} 个 commit(仅本地, 由研发决定是否推远端)`
+        ? (pushed
+          ? `✅ 自动修复完成并已推送: origin/${fixBranch}, 应用 ${applied}/${issues.length} 个修复, ${commits.length} 个 commit(研发可 git fetch 后切分支修改)`
+          : `✅ 自动修复完成: 分支 ${fixBranch}, 应用 ${applied}/${issues.length} 个修复, ${commits.length} 个 commit(仅本地, 未推送)`)
         : `❌ 未能应用任何修复(${failed} 个失败)`,
     };
   }

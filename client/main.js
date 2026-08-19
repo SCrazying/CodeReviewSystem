@@ -70,6 +70,25 @@ async function runDailyGate() {
   return r;
 }
 
+// ---- 本地审查历史(用户可在客户端查看历史 Review 记录) ----
+const HISTORY_MAX = 500;
+function historyFile() { return path.join(app.getPath('userData'), 'reviews-history.json'); }
+function loadHistory() {
+  try { const arr = JSON.parse(fs.readFileSync(historyFile(), 'utf8')); return Array.isArray(arr) ? arr : []; } catch { return []; }
+}
+function saveReviewHistory(review, meta) {
+  try {
+    const arr = loadHistory();
+    arr.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), ts: Date.now(), ...meta, comments: (review && review.comments) || [], commentsCount: ((review && review.comments) || []).length });
+    if (arr.length > HISTORY_MAX) arr.splice(0, arr.length - HISTORY_MAX);
+    fs.writeFileSync(historyFile(), JSON.stringify(arr, null, 1), 'utf-8');
+  } catch { }
+}
+/** 历史列表(新→旧) */
+ipcMain.handle('reviews:list', () => {
+  return loadHistory().slice().reverse();
+});
+
 // 当前激活仓库的唯一标识(防跨仓库误用审查结果, 不同仓库同名 MR iid 相同)
 function currentRepoKey() {
   const c = activeRepoConfig(loadConfig());
@@ -144,6 +163,7 @@ ipcMain.handle('config:save', async (e, cfg) => {
     // 审查偏好(开关)
     autoPost: !!cfg.autoPost,
     autoFix: !!cfg.autoFix,
+    autoPushFix: !!cfg.autoPushFix,   // 修复分支创建后自动推送远端
     reviewDepth: String(cfg.reviewDepth || 'standard').trim(),
     // 审查输出语言: auto 自动(英文→客户端智能翻译) / zh 中文(ocr 直接中文) / en 英文
     ocrLang: String(cfg.ocrLang || 'auto').trim(),
@@ -254,6 +274,13 @@ ipcMain.handle('mrs:list', async () => {
   return r;
 });
 
+/** 历史 MR(已合入/已关闭) */
+ipcMain.handle('mrs:history', async () => {
+  if (!backend) return { ok: false, error: '请先保存配置' };
+  const r = await backend.listHistoryMRs();
+  return r;
+});
+
 ipcMain.handle('review:run', async (e, iid) => {
   // 审查门禁: 每日卡控未通过则禁用
   if (!gate || !gate.authorized) {
@@ -268,6 +295,7 @@ ipcMain.handle('review:run', async (e, iid) => {
   if (r.ok) {
     r.repoKey = currentRepoKey();   // 标记审查所属仓库, 防跨仓库误用
     lastReview = r;
+    saveReviewHistory(r, { repoKey: r.repoKey, repoProject: activeRepoConfig(loadConfig()).project || '', object: `MR !${iid}`, iid });
     pushLog(`审查完成: ${r.comments.length} 条评论`);
     try {
       await translateComments(r.comments, cfg);
@@ -368,6 +396,7 @@ ipcMain.handle('commit:review', async (e, sha) => {
   if (r.ok) {
     r.repoKey = currentRepoKey();   // 标记审查所属仓库, 防跨仓库误用
     lastReview = r;
+    saveReviewHistory(r, { repoKey: r.repoKey, repoProject: activeRepoConfig(loadConfig()).project || '', object: `提交 ${String(sha).slice(0, 8)}`, sha: String(sha) });
     pushLog(`提交审查完成: ${r.comments.length} 条评论`);
     try {
       await translateComments(r.comments, loadConfig());

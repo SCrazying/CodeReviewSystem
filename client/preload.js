@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('api', {
   testConnect: () => ipcRenderer.invoke('connect:test'),
   serverTest: (baseUrl, token) => ipcRenderer.invoke('server:test', baseUrl, token),
   listMRs: () => ipcRenderer.invoke('mrs:list'),
+  listHistoryMRs: () => ipcRenderer.invoke('mrs:history'),
+  reviewHistory: () => ipcRenderer.invoke('reviews:list'),
   runReview: (iid) => ipcRenderer.invoke('review:run', iid),
   stopReview: () => ipcRenderer.invoke('review:stop'),
   postComments: (iid) => ipcRenderer.invoke('review:post', iid),

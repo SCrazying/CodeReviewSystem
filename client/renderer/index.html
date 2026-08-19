@@ -20,8 +20,8 @@
   .config-bar { background: var(--panel); border-bottom: 1px solid var(--border); padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .config-bar label { color: var(--muted); font-size: 11px; }
   .config-bar input, .config-bar select {
-    background: #0d1117; border: 1px solid var(--border); border-radius: 6px; color: var(--text);
-    padding: 5px 8px; font-size: 12px; min-width: 90px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 5px 9px; font-size: 12px;
   }
   .config-bar input:focus { border-color: var(--accent); outline: none; }
   .config-bar .wide { flex: 1; min-width: 140px; }
@@ -46,11 +46,11 @@
   .col-content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
   .col-log { width: 340px; border-left: 1px solid var(--border); background: var(--panel); }
 
-  .col-header { padding: 10px 12px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+  .col-header { padding: 11px 14px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; background: rgba(127,127,127,.10); }
   .mr-list { flex: 1; overflow-y: auto; }
   .mr-item { padding: 10px 12px; border-bottom: 1px solid #21262d; cursor: pointer; transition: background .1s; }
-  .mr-item:hover { background: #1c2128; }
-  .mr-item.active { background: #1f2937; border-left: 3px solid var(--accent); }
+  .mr-item:hover { background: rgba(127,127,127,.07); }
+  .mr-item.active { background: rgba(47,129,247,.12); }
   .mr-item .t { font-weight: 600; font-size: 12.5px; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mr-item .meta { color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mr-item .badge { display: inline-block; background: #238636; color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 10px; margin-left: 6px; }
@@ -63,8 +63,8 @@
   .stats .n { font-weight: 700; font-size: 16px; }
   .stats .high { color: var(--high); } .stats .medium { color: var(--medium); } .stats .low { color: var(--low); } .stats .all { color: var(--text); }
   .comments { flex: 1; overflow-y: auto; padding: 10px 12px; }
-  .comment { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
-  .comment .head { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-bottom: 1px solid #21262d; background: #1a1f26; }
+  .comment { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
+  .comment .head { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-bottom: 1px solid #21262d; background: rgba(127,127,127,.06); }
   .comment .file { font-family: Consolas, monospace; font-size: 12px; color: #79c0ff; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .comment .sev { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
   .sev.high { background: rgba(248,81,73,.15); color: var(--high); }
@@ -86,6 +86,8 @@
 
   /* ---- M3 提交树 ---- */
   .tabs { display:flex; border-bottom:1px solid var(--border); }
+  .left-nav { padding:6px; border-bottom:1px solid var(--border); display:block; }
+  .left-nav .nav-item { font-size:12.5px; }
   .tab-btn { background:transparent; border:none; border-bottom:2px solid transparent; color:var(--muted); padding:8px 12px; cursor:pointer; font-size:12px; flex:1; }
   .tab-btn.active { color:var(--text); border-bottom-color:var(--accent); }
   .branch-bar { display:flex; gap:6px; padding:6px; align-items:center; }
@@ -259,6 +261,7 @@
         <div class="set-group">
           <div class="set-row"><label>自动回填评论</label><label class="switch"><input type="checkbox" id="set-autopost"><span class="slider"></span></label><span class="set-hint">审查完成后自动把评论回填到 Git MR</span></div>
           <div class="set-row"><label>自动修复分支</label><label class="switch"><input type="checkbox" id="set-autofix"><span class="slider"></span></label><span class="set-hint">审查完成自动创建修复分支(每问题一个 commit, 仅本地)</span></div>
+          <div class="set-row"><label>修复后推送远端</label><label class="switch"><input type="checkbox" id="set-autopushfix"><span class="slider"></span></label><span class="set-hint">自动修复后把 fix/ai/... 修复分支推送到 Git，研发可直接拉取修改</span></div>
           <div class="set-row"><label>审查输出语言</label><select id="set-ocrlang" class="set-input" style="width:200px">
               <option value="auto" selected>自动(推荐)</option>
               <option value="zh">中文</option>
@@ -319,12 +322,17 @@
 <div class="main" id="main-wrap">
   <!-- 左侧: MR / 提交树 -->
   <div class="col col-mrs">
-    <div class="tabs">
-      <button id="tab-mr" class="tab-btn active">待审查 MR <span id="mr-count"></span></button>
-      <button id="tab-commits" class="tab-btn">📚 提交树</button>
-    </div>
+    <nav class="left-nav" id="left-nav">
+      <div class="nav-item active" id="tab-mr">🚀 待合入 MR <span id="mr-count"></span></div>
+      <div class="nav-item" id="tab-mrhistory">🗂 历史 MR</div>
+      <div class="nav-item" id="tab-commits">📚 提交树</div>
+      <div class="nav-item" id="tab-history">📋 历史 Review</div>
+    </nav>
     <div id="panel-mr" style="flex:1;min-height:0;display:flex;flex-direction:column">
       <div class="mr-list" id="mr-list"></div>
+    </div>
+    <div id="panel-mrhistory" style="display:none;flex:1;min-height:0;flex-direction:column">
+      <div class="mr-list" id="mrhistory-list"></div>
     </div>
     <div id="panel-commits" style="display:none;flex:1;min-height:0;flex-direction:column">
       <div class="branch-bar">
@@ -335,6 +343,9 @@
       </div>
       <div class="mr-list" id="commit-list"></div>
     </div>
+    <div id="panel-history" style="display:none;flex:1;min-height:0;flex-direction:column">
+      <div class="mr-list" id="history-list"></div>
+    </div>
   </div>
 
   <!-- 内容 -->
@@ -343,10 +354,10 @@
     <div class="toolbar">
       <span class="mr-title" id="detail-title">选择一个 MR 或提交开始审查</span>
       <button id="btn-open" disabled title="在当前 MR/提交的网页打开">🌐 打开</button>
-      <button id="btn-review" disabled>🔍 开始审查</button>
+      <button id="btn-review" class="primary" disabled>🔍 开始审查</button>
       <button id="btn-stop" disabled title="手动停止当前进行中的审查">⏹ 停止评审</button>
-      <button id="btn-post" class="primary" disabled>📤 回填评论</button>
-      <button id="btn-fix" disabled title="基于 MR 原始分支创建修复分支, 每个问题一个 commit, 仅本地">🔧 自动修复</button>
+      <button id="btn-post" disabled>📤 回填评论</button>
+      <button id="btn-fix" disabled title="基于 MR 原始分支创建修复分支, 每个问题一个 commit">🔧 自动修复</button>
     </div>
     <div class="stats" id="stats" style="display:none">
       <div>全部 <span class="n all" id="st-all">0</span></div>
@@ -360,7 +371,7 @@
       <button id="btn-rel-open" style="margin-left:8px;padding:2px 8px">🌐 查看 MR</button>
       <button id="btn-rel-review" style="margin-left:6px;padding:2px 8px;background:#6f42c1;border-color:#8b5cf6">🔍 审查整个 MR</button>
     </div>
-    <div class="comments" id="comments"></div>
+    <div class="comments" id="comments"><div class="empty" style="margin-top:40px;text-align:center">👈 从左侧选择 MR / 提交 / 历史记录开始<br>或点击「🔍 开始审查」执行 AI 审查</div></div>
   </div>
 
   <!-- 日志 -->
@@ -466,11 +477,11 @@ function loadRepoEditor(r) {
 
 // ---- 设置导航(Cursor 风格) ----
 function switchSettingsPanel(name) {
-  document.querySelectorAll('.nav-item').forEach((b) => b.classList.toggle('active', b.dataset.panel === name));
+  document.querySelectorAll('.settings-nav .nav-item').forEach((b) => b.classList.toggle('active', b.dataset.panel === name));
   document.querySelectorAll('.set-panel').forEach((p) => { p.style.display = p.id === name ? '' : 'none'; });
 }
 function bindSettingsNav() {
-  document.querySelectorAll('.nav-item').forEach((b) => {
+  document.querySelectorAll('.settings-nav .nav-item').forEach((b) => {
     b.onclick = () => {
       if (b.dataset.action === 'home') { showSettings(false); return; }
       switchSettingsPanel(b.dataset.panel);
@@ -478,7 +489,7 @@ function bindSettingsNav() {
   });
   $('settings-search').oninput = () => {
     const q = $('settings-search').value.trim().toLowerCase();
-    document.querySelectorAll('.nav-item').forEach((b) => {
+    document.querySelectorAll('.settings-nav .nav-item').forEach((b) => {
       b.style.display = (!q || b.textContent.toLowerCase().includes(q)) ? '' : 'none';
     });
   };
@@ -503,6 +514,7 @@ function loadSettingsUI(cfg) {
   setModelValue(cfg.model);
   $('set-autopost').checked = !!cfg.autoPost;
   $('set-autofix').checked = !!cfg.autoFix;
+  $('set-autopushfix').checked = !!cfg.autoPushFix;
   $('set-depth').value = cfg.reviewDepth || 'standard';
   $('set-concurrency').value = cfg.concurrency || 8;
   $('set-timeout').value = cfg.reviewTimeout || 60;
@@ -539,6 +551,7 @@ function collectSettings() {
     clientToken: $('cfg-clienttoken').value.trim(),
     autoPost: $('set-autopost').checked,
     autoFix: $('set-autofix').checked,
+    autoPushFix: $('set-autopushfix').checked,
     reviewDepth: $('set-depth').value,
     ocrLang: $('set-ocrlang').value,
     concurrency: Number($('set-concurrency').value) || 8,
@@ -664,7 +677,7 @@ function selectMR(mr, el) {
   currentTarget = { type: 'mr', iid: mr.iid, webUrl: mr.web_url || '' };
   document.querySelectorAll('.mr-item').forEach((x) => x.classList.remove('active'));
   if (el) el.classList.add('active');
-  $('detail-title').textContent = `!${mr.iid} [${mr.source_branch} → ${mr.target_branch}] ${mr.title}`;
+  $('detail-title').textContent = `!${mr.iid} [${mr.source_branch} → ${mr.target_branch}] ${mr.title}${mr.state && mr.state !== 'opened' && mr.state !== 'open' ? ' · ' + mr.state : ''}`;
   $('btn-review').disabled = false;
   $('btn-open').disabled = !mr.web_url;
   $('btn-post').disabled = false;
@@ -672,6 +685,30 @@ function selectMR(mr, el) {
   $('comments').innerHTML = '<div class="empty">点击「开始审查」执行 AI 审查</div>';
   $('stats').style.display = 'none';
   currentComments = [];
+}
+
+/** 历史 MR(已合入/已关闭)列表 */
+async function renderHistoryMRList() {
+  const list = $('mrhistory-list');
+  list.innerHTML = '<div class="empty">加载中...</div>';
+  const r = await window.api.listHistoryMRs();
+  if (!r || !r.ok) { list.innerHTML = '<div class="empty">加载失败: ' + esc((r && r.error) || '未知') + '</div>'; return; }
+  const mrs = r.mrs || [];
+  if (!mrs.length) { list.innerHTML = '<div class="empty">暂无历史 MR(已合入/已关闭)</div>'; return; }
+  list.innerHTML = '';
+  mrs.forEach((mr) => {
+    const div = document.createElement('div');
+    div.className = 'mr-item';
+    const st = mr.state === 'merged' ? '✅ 已合入' : (mr.state === 'closed' ? '⛔ 已关闭' : mr.state);
+    const stColor = mr.state === 'merged' ? 'var(--green)' : 'var(--red)';
+    div.innerHTML = `<div class="t">${esc(mr.title)}<span class="badge">!${mr.iid}</span>
+      <button class="go-btn" title="在网页打开 MR" style="float:right;background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px">↗</button></div>
+      <div class="meta">${esc(mr.source_branch)} → ${esc(mr.target_branch)} <span style="color:${stColor};font-size:11px">${st}</span></div>`;
+    div.onclick = () => selectMR(mr, div);
+    const go = div.querySelector('.go-btn');
+    if (go) go.onclick = (ev) => { ev.stopPropagation(); window.api.openUrl(mr.web_url || ''); };
+    list.appendChild(div);
+  });
 }
 
 // ---- M3: 提交树 ----
@@ -731,6 +768,50 @@ async function loadCommits() {
     if (go) go.onclick = (ev) => { ev.stopPropagation(); window.api.openCommit(c.hash); };
     list.appendChild(div);
   });
+}
+
+/** 历史 Review: 渲染列表 */
+async function renderHistoryList() {
+  const list = $('history-list');
+  list.innerHTML = '<div class="empty">加载中...</div>';
+  const arr = await window.api.reviewHistory();
+  if (!arr.length) { list.innerHTML = '<div class="empty">暂无历史 Review —— 完成一次审查后自动记录</div>'; return; }
+  list.innerHTML = '';
+  arr.forEach((h, i) => {
+    const div = document.createElement('div');
+    div.className = 'commit-item';
+    const t = new Date(h.ts);
+    const ts = `${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')} ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+    // 前几条评论摘要(path:line)
+    const sm = (h.comments || []).slice(0, 3).map((c) => `${c.path}:${c.start_line}`).join(' · ');
+    div.innerHTML = `<div class="h"><span class="mr-badge" style="background:rgba(47,129,247,.15);color:var(--accent)">${esc(h.object || '审查')}</span>
+        <span style="float:right;color:var(--muted);font-size:11px">${ts}</span></div>
+      <div class="s">${esc(h.repoProject || '')}${h.model ? ' · ' + esc(h.model) : ''} · <b>${h.commentsCount || 0}</b> 条评论</div>
+      <div class="meta"><span>${sm ? esc(sm) : '无问题'}</span></div>`;
+    div.onclick = () => selectHistory(h, div);
+    list.appendChild(div);
+  });
+}
+
+/** 历史 Review: 查看某次的评论(只读, 复用右侧审查结果区) */
+function selectHistory(h, el) {
+  document.querySelectorAll('.commit-item').forEach((x) => x.classList.remove('sel'));
+  if (el) el.classList.add('sel');
+  currentTarget = null;
+  currentComments = h.comments || [];
+  $('detail-title').textContent = `历史 · ${h.object || '审查'}${h.repoProject ? ' (' + h.repoProject + ')' : ''}`;
+  $('btn-review').disabled = true;
+  $('btn-post').disabled = true;
+  $('btn-fix').disabled = true;
+  $('rel-mr-box').style.display = 'none';
+  if (currentComments.length) {
+    renderComments(currentComments, {});
+    setStatus('ok', `历史记录 · ${currentComments.length} 条评论`);
+  } else {
+    $('comments').innerHTML = '<div class="empty">该次审查无评论</div>';
+    $('stats').style.display = 'none';
+    setStatus('idle', '历史记录 · 无评论');
+  }
 }
 
 async function doReview() {
@@ -1038,12 +1119,22 @@ $('btn-stop').onclick = async () => {
 };
 $('btn-post').onclick = doPost;
 $('btn-fix').onclick = doFix;
-$('tab-mr').onclick = () => { $('tab-mr').classList.add('active'); $('tab-commits').classList.remove('active'); $('panel-mr').style.display = 'flex'; $('panel-commits').style.display = 'none'; };
+function switchLeftTab(activeId) {
+  ['tab-mr', 'tab-mrhistory', 'tab-commits', 'tab-history'].forEach((id) => {
+    document.getElementById(id).classList.toggle('active', id === activeId);
+  });
+  const map = { 'tab-mr': 'panel-mr', 'tab-mrhistory': 'panel-mrhistory', 'tab-commits': 'panel-commits', 'tab-history': 'panel-history' };
+  ['panel-mr', 'panel-mrhistory', 'panel-commits', 'panel-history'].forEach((id) => {
+    document.getElementById(id).style.display = id === map[activeId] ? 'flex' : 'none';
+  });
+}
+$('tab-mr').onclick = () => { switchLeftTab('tab-mr'); };
+$('tab-mrhistory').onclick = () => { switchLeftTab('tab-mrhistory'); renderHistoryMRList(); };
 $('tab-commits').onclick = () => {
-  $('tab-commits').classList.add('active'); $('tab-mr').classList.remove('active');
-  $('panel-mr').style.display = 'none'; $('panel-commits').style.display = 'flex';
+  switchLeftTab('tab-commits');
   if ($('branch-dl').children.length <= 1) loadBranches();
 };
+$('tab-history').onclick = () => { switchLeftTab('tab-history'); renderHistoryList(); };
 $('btn-recheck').onclick = async () => {
   log('执行每日卡控校验...');
   document.getElementById('btn-recheck').disabled = true;
