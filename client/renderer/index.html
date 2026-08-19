@@ -569,12 +569,28 @@ function loadSettingsUIFromBar() {
 window.__lastCfg = null;
 async function saveAllSettings() {
   const cfg = collectSettings();
+  // 保存前校验 LLM 配置(地址/Key/模型) — 配置异常当场报出, 不再等到审查时才发现; 不依赖系统环境
+  const vf = cfg.llmBaseUrl + '|' + cfg.llmApiKey + '|' + cfg.model;
+  if (window.__llmV !== vf) {
+    $('set-msg').style.color = 'var(--muted)';
+    $('set-msg').textContent = '校验模型配置...';
+    const v = await window.api.validateLlm(cfg.llmBaseUrl, cfg.llmApiKey, cfg.model)
+      .catch(() => ({ ok: false, error: '校验服务异常' }));
+    if (!v || !v.ok) {
+      $('set-msg').style.color = 'var(--red)';
+      $('set-msg').textContent = '❌ 校验失败: ' + ((v && v.error) || '未知') + '(已阻止保存)';
+      return { ok: false, error: (v && v.error) || '校验失败' };
+    }
+    window.__llmV = vf;   // 校验通过才缓存指纹, 后续未改动直接保存
+  }
+  $('set-msg').style.color = 'var(--green)';
   $('set-msg').textContent = '保存中...';
   const r = await window.api.saveConfig(cfg).catch((err) => ({ ok: false, error: (err && err.message) || String(err) }));
   applyAppearance(cfg);
   // 保存后拉取拆分后的配置(地址含项目 → 自动拆出项目字段回显)
   const cfg2 = r && r.ok ? await window.api.getConfig() : cfg;
   renderRepoSelects(cfg2);
+  $('set-msg').style.color = 'var(--green)';
   $('set-msg').textContent = r && r.ok ? '✅ 已保存' : '❌ ' + ((r && r.error) || '保存失败');
   await refreshGate();
   return r;   // 供 btn-save-repo 判断(修复"实际保存成功却报失败")

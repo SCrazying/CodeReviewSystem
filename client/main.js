@@ -253,6 +253,48 @@ ipcMain.handle('llm:models', async (e, baseUrl, apiKey) => {
   }
 });
 
+/** 保存前校验 LLM 配置(不依赖系统环境): 地址可达 + Key 有效 + 模型存在 */
+ipcMain.handle('llm:validate', async (e, baseUrl, apiKey, model) => {
+  const base = String(baseUrl || '').replace(/\/+$/, '');
+  if (!base) return { ok: false, error: '「API 地址」不能为空' };
+  if (!/^https?:\/\//i.test(base)) return { ok: false, error: '「API 地址」必须以 http:// 或 https:// 开头' };
+  if (!/\/v1(?:\/|$)/i.test(base + '/')) return { ok: false, error: '「API 地址」建议包含 /v1(OpenAI 兼容) 或已由网关统一' };
+  const key = String(apiKey || '').trim();
+  if (!key) return { ok: false, error: '「API Key」不能为空(已不再使用系统环境变量)' };
+  if (!String(model || '').trim()) return { ok: false, error: '「审查模型」不能为空' };
+  try {
+    const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key };
+    const res = await fetch(base + '/models', { headers, signal: AbortSignal.timeout(15000) });
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) return { ok: false, error: `API Key 无效(HTTP ${res.status})` };
+      return { ok: false, error: `模型列表请求失败: HTTP ${res.status}` };
+    }
+    const data = await res.json();
+    const models = Array.isArray(data.data) ? data.data.map((m) => m.id).filter(Boolean) : [];
+    if (!models.length) return { ok: false, error: '地址可达但未返回模型列表, 请确认是 OpenAI 兼容网关' };
+    const target = String(model || '').trim();
+    const found = models.some((m) => m === target || m.includes(target) || target.includes(m));
+    // 真实请求一次(极小): 部分网关 /models 不鉴权, 用 /chat/completions 确认 Key 真有效 + 模型可用
+    try {
+      const r2 = await fetch(base + '/chat/completions', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ model: target, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 }),
+        signal: AbortSignal.timeout(20000),
+      });
+      if (r2.status === 401 || r2.status === 403) return { ok: false, error: `API Key 无效(HTTP ${r2.status}), 请核对「模型服务 → API Key」` };
+      if (r2.status === 404) return { ok: false, error: `模型「${target}」在该网关不存在(HTTP 404), 请从「获取模型列表」中选择` };
+      if (!r2.ok) return { ok: false, error: `模型请求失败: HTTP ${r2.status}` };
+    } catch (e2) {
+      return { ok: false, error: '模型调用超时/失败: ' + e2.message };
+    }
+    pushLog(`✅ LLM 配置校验通过: ${base} · 模型 ${target}(${found ? '在列表' : '列表未找到同名, 但调用成功'})`);
+    return { ok: true, modelFound: found, models, message: found ? '校验通过' : '⚠ 网关可达且调用成功, 但所选模型不在 /models 列表' };
+  } catch (e) {
+    return { ok: false, error: '连接失败(检查地址/网络/代理): ' + e.message };
+  }
+});
+
 // 重新卡控(设置页手动触发)
 ipcMain.handle('gate:recheck', async () => {
   return runDailyGate();

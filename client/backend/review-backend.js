@@ -731,11 +731,12 @@ function syncOcrConfig(cfg, log = () => {}) {
   } catch (e) { return false; }
 }
 
-/** 从客户端配置解析 LLM 三元组(url/key/model), 供 exe 直接使用 */
+/** 从客户端配置解析 LLM 三元组(url/key/model)。只依赖软件内配置(不依赖系统环境/主目录) */
 function _llmVals(cfg) {
   const url = String((cfg && cfg.llmBaseUrl) || '').trim();
   const model = String((cfg && cfg.model) || '').trim() || 'deepseek-v4-flash';
   let key = String((cfg && cfg.llmApiKey) || '').trim();
+  // Key 兜底: 仅读软件自己的便携配置(app provider, 由 syncOcrConfig 按客户端设置写入), 不读系统环境变量
   if (!key) {
     try {
       const pc = path.join(ocrPortableHome(), '.opencodereview', 'config.json');
@@ -743,7 +744,6 @@ function _llmVals(cfg) {
       key = ((oc.custom_providers || {}).app || {}).api_key || '';
     } catch { }
   }
-  if (!key) key = process.env.HERMES_CUSTOM_OPENCODE_API_KEY || '';
   return { url, model, key };
 }
 
@@ -758,13 +758,13 @@ function runNative(exePath, args, cwd, cfg, log = () => {}, timeoutMs = 60 * 60 
     // 关键: 覆盖主目录, 使 ocr 把配置写到便携目录(客户端根/.opencodereview), 随程序走
     USERPROFILE: ocrPortableHome(),
     HOME: ocrPortableHome().replace(/\\/g, '/'),
-    // exe 官方认可的 LLM endpoint 三件套(报错信息亲述), 直接给, 不依赖 config 是否被读到
-    OCR_LLM_URL: url,
-    OCR_LLM_TOKEN: key,
-    OCR_LLM_MODEL: model,
     OCR_MODEL: model,
     OCR_NO_UPDATE: '1',
   };
+  // exe 认可的 LLM endpoint 三件套: 仅在有效时注入; 空值不注入(避免空串让 exe 以为已配置并解析失败)
+  if (url) env.OCR_LLM_URL = url;
+  if (key) env.OCR_LLM_TOKEN = key;
+  if (model) env.OCR_LLM_MODEL = model;
   return runChild(exePath, args, cwd, model, env, timeoutMs);
 }
 

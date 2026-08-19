@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('api', {
   adminAuth: (password) => ipcRenderer.invoke('admin:auth', password),
   adminRevoke: () => ipcRenderer.invoke('admin:revoke'),
   llmModels: (baseUrl, apiKey) => ipcRenderer.invoke('llm:models', baseUrl, apiKey),
+  validateLlm: (baseUrl, apiKey, model) => ipcRenderer.invoke('llm:validate', baseUrl, apiKey, model),
   flushQueue: () => ipcRenderer.invoke('queue:flush'),
   // M3: 提交树
   listBranches: () => ipcRenderer.invoke('commits:branches'),
