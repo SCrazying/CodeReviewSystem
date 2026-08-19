@@ -106,9 +106,7 @@
 
   
   /* ---- 设置视图 Cursor 风格 ---- */
-  .settings-head { display:flex; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid var(--border); background:var(--panel); }
-  .settings-search { width:260px; background:#0d1117; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:5px 10px; font-size:12px; }
-  .settings-body { display:flex; height:calc(100% - 53px); }
+  .settings-body { display:flex; height:100%; }
   .settings-nav { width:300px; border-right:1px solid var(--border); padding:12px 8px; overflow-y:auto; background:var(--panel); flex-shrink:0; }
   .nav-group { color:var(--muted); font-size:10px; font-weight:600; letter-spacing:.5px; padding:10px 10px 4px; text-transform:uppercase; }
   .nav-item { display:block; width:100%; text-align:left; background:transparent; border:none; color:var(--text); padding:10px 12px; border-radius:6px; cursor:pointer; font-size:14px; margin-bottom:2px; }
@@ -153,7 +151,7 @@
   html[data-theme="light"] .settings-nav { background:#fff; }
   html[data-theme="light"] .nav-item:hover { background:#f3f4f6; }
   html[data-theme="light"] .nav-item.active { background:#ddf4ff; }
-  html[data-theme="light"] .set-input, html[data-theme="light"] .settings-search { background:#fff; }
+  html[data-theme="light"] .set-input { background:#fff; }
   html[data-theme="light"] .set-row { border-bottom:1px solid #eaeef2; }
   html[data-theme="light"] .slider { background:#d0d7de; }
   html[data-theme="light"] button:not(.primary):not(.tab-btn):not(.nav-item) { background:#fff; color:var(--text); }
@@ -167,9 +165,6 @@
 
 <!-- 设置视图(Codex 风格: 分组卡片 + 开关) -->
 <div id="settings-view" style="display:none;flex:1;overflow:hidden">
-  <div class="settings-head">
-    <span style="font-size:15px;font-weight:600">⚙ 设置</span>
-  </div>
   <div class="settings-body">
     <div class="settings-nav">
       <button class="nav-item" data-action="home" title="返回主界面">← 返回主页</button>
