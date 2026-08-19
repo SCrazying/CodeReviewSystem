@@ -42,7 +42,7 @@
   /* ---- 主区域 ---- */
   .main { flex: 1; display: flex; min-height: 0; }
   .col { display: flex; flex-direction: column; min-width: 0; }
-  .col-mrs { width: 320px; border-right: 1px solid var(--border); background: var(--panel); position: relative; }
+  .col-mrs { width: 300px; border-right: 1px solid var(--border); background: var(--panel); position: relative; }
   .col-content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
   .col-log { width: 340px; border-left: 1px solid var(--border); background: var(--panel); }
 
@@ -109,7 +109,7 @@
   .settings-head { display:flex; align-items:center; gap:12px; padding:12px 20px; border-bottom:1px solid var(--border); background:var(--panel); }
   .settings-search { width:260px; background:#0d1117; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:5px 10px; font-size:12px; }
   .settings-body { display:flex; height:calc(100% - 53px); }
-  .settings-nav { width:190px; border-right:1px solid var(--border); padding:12px 8px; overflow-y:auto; background:var(--panel); flex-shrink:0; }
+  .settings-nav { width:300px; border-right:1px solid var(--border); padding:12px 8px; overflow-y:auto; background:var(--panel); flex-shrink:0; }
   .nav-group { color:var(--muted); font-size:10px; font-weight:600; letter-spacing:.5px; padding:10px 10px 4px; text-transform:uppercase; }
   .nav-item { display:block; width:100%; text-align:left; background:transparent; border:none; color:var(--text); padding:7px 10px; border-radius:6px; cursor:pointer; font-size:12px; margin-bottom:1px; }
   .nav-item:hover { background:#1c2128; }
@@ -169,11 +169,10 @@
 <div id="settings-view" style="display:none;flex:1;overflow:hidden">
   <div class="settings-head">
     <span style="font-size:15px;font-weight:600">⚙ 设置</span>
-    <input id="settings-search" class="settings-search" placeholder="搜索设置..." style="margin-left:auto">
   </div>
   <div class="settings-body">
     <div class="settings-nav">
-      <button class="nav-item" data-action="home" title="返回主页(与设置互为切换)">🏠 主页</button>
+      <button class="nav-item" data-action="home" title="返回主界面">← 返回主页</button>
       <div class="nav-group">常规</div>
       <button class="nav-item active" data-panel="panel-general">⚙️ 常规</button>
       <button class="nav-item" data-panel="panel-server">☁ 服务端</button>
@@ -487,12 +486,6 @@ function bindSettingsNav() {
       switchSettingsPanel(b.dataset.panel);
     };
   });
-  $('settings-search').oninput = () => {
-    const q = $('settings-search').value.trim().toLowerCase();
-    document.querySelectorAll('.settings-nav .nav-item').forEach((b) => {
-      b.style.display = (!q || b.textContent.toLowerCase().includes(q)) ? '' : 'none';
-    });
-  };
 }
 function setModelValue(model) {
   // 模型下拉回填: 仅当有实际模型值时更新选中(空值不改动下拉, 避免重置已获取的模型列表/当前值)
