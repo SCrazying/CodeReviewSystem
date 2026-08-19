@@ -177,6 +177,8 @@
       <div class="nav-group">个性化</div>
       <button class="nav-item" data-panel="panel-appearance">☀ 外观</button>
       <button class="nav-item" data-panel="panel-admin">🔐 高级</button>
+      <div class="nav-group">帮助</div>
+      <button class="nav-item" data-panel="panel-help">📖 使用手册</button>
     </div>
 
     <div class="settings-content">
@@ -292,6 +294,65 @@
           <div class="set-row"><label>版本</label><span style="color:var(--muted);font-size:12px">CodeReviewTool v1.0 · AI 代码审查工作台</span></div>
         </div>
       </div>
+      <!-- 使用手册 -->
+      <div id="panel-help" class="set-panel" style="display:none;max-width:760px">
+        <div class="panel-title">📖 使用手册</div>
+
+        <div class="set-group">
+          <div class="set-title">🚀 快速上手(4 步)</div>
+          <div class="set-row" style="align-items:flex-start"><label>1. 配置模型</label><span class="set-hint" style="flex:1">设置 → 常规 → 填写「API 地址 / API Key / 审查模型」→ 点「保存全部设置」(保存时会自动校验, 配置错误当场提示, 校验通过才会保存)。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>2. 添加仓库</label><span class="set-hint" style="flex:1">设置 → Git 仓库 → 新增, 填入 Git 地址 / API Token / 本地目录; 或直接在顶部选择已配置仓库。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>3. 选择审查对象</label><span class="set-hint" style="flex:1">左侧导航: 待合入 MR / 历史 MR / 提交树, 点选一条 → 「🔍 开始审查」。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>4. 回填与修复</label><span class="set-hint" style="flex:1">审查结果每条可勾选 → 「📤 回填评论」只回填所选项; 「🔧 自动修复」自动生成修复分支并(默认)推送远端。</span></div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-title">🗂 左侧导航(与设置一致)</div>
+          <div class="set-row" style="align-items:flex-start"><label>🏠 主页</label><span class="set-hint" style="flex:1">返回主界面(默认激活「待合入 MR」)。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>🚀 待合入 MR</label><span class="set-hint" style="flex:1">当前未合并的 MR, 可审查/回填/修复。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>🗂 历史 MR</label><span class="set-hint" style="flex:1">已合入 ✅ / 已关闭 ⛔ 的 MR, 可再次选中审查。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>📚 提交树</label><span class="set-hint" style="flex:1">按分支查看提交, 可对单个提交审查(回填到关联 MR 或提交评论)。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>📋 历史 Review</label><span class="set-hint" style="flex:1">本机保存的每次审查记录, 可回看评论/修复建议, 且支持勾选后再次回填(仓库一致时才允许)。</span></div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-title">💬 审查与回填</div>
+          <div class="set-row" style="align-items:flex-start"><label>审查输出语言</label><span class="set-hint" style="flex:1">审查偏好可设「中文」—— ocr 直接输出简体中文(无需再翻译); 设「自动」则英文原文 + 智能翻译。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>选择性回填</label><span class="set-hint" style="flex:1">每条评论前有勾选框, 统计行支持「全选 / 全不选」; 「📤 回填评论」仅回填勾选项, 已在服务器存在的自动去重。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>历史回填</label><span class="set-hint" style="flex:1">历史 Review 里勾选评论后点「📤 回填评论」可补推到对应 MR/提交; 若记录属于其它仓库, 会提示先切换仓库。</span></div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-title">🔧 自动修复与推送</div>
+          <div class="set-row" style="align-items:flex-start"><label>基于源分支</label><span class="set-hint" style="flex:1">修复分支建立在 MR 的<b>源分支</b>上(如 br_feature_xxx), 与合入目标是 br_dev_xxxx 无关。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>逐问题提交</label><span class="set-hint" style="flex:1">每个问题一个增量 commit, 标题「【fix】…」, 描述含「【问题单号】MR#N」「【影响性】高/中/低」。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>推送远端(默认开)</label><span class="set-hint" style="flex:1">审查偏好「修复后推送远端」默认勾选; 修复完成自动 push 到远端, 研发 <code>git fetch && git checkout fix/ai/...</code> 即可查看/ cherry-pick 到自己的源分支。</span></div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-title">⚙️ 设置项速查</div>
+          <div class="set-row" style="align-items:flex-start"><label>模型服务</label><span class="set-hint" style="flex:1">API 地址(head 幂版本须带 /v1)、API Key(不再使用系统环境变量)、审查模型(「获取模型列表」刷新)。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>服务端</label><span class="set-hint" style="flex:1">单机服务地址 http://127.0.0.1:3001 与客户端 Token(卡控/记录推送)。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>审查偏好</label><span class="set-hint" style="flex:1">自动回填、自动修复、修复后推送远端、审查输出语言、审查并发(1-32)、审查超时(默认 60 分钟)、推送失败上限。</span></div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-title">⌨️ 快捷键 / 小技巧</div>
+          <div class="set-row" style="align-items:flex-start"><label>Ctrl + / -</label><span class="set-hint" style="flex:1">放大 / 缩小整个界面布局; Ctrl+0 复位 100%(重启后保持上次大小)。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>日志右键</label><span class="set-hint" style="flex:1">运行日志区右键: 「📋 复制日志」(有选中只复制所选)、「🧹 清空日志」。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>仓库切换</label><span class="set-hint" style="flex:1">右上「审查结果」上方的仓库下拉可直接切换, 列表/审查随之更新。</span></div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-title">🩺 常见问题排查</div>
+          <div class="set-row" style="align-items:flex-start"><label>保存时校验失败</label><span class="set-hint" style="flex:1">按提示核对 API 地址(是否 /v1)/ Key(401?)/ 模型名(404? 从「获取模型列表」选择)。校验不通过会阻止保存。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>审查提示大模型找不到</label><span class="set-hint" style="flex:1">多为配置问题: 请到「常规」确认 API 地址/Key/模型已正确保存(保存通过校验即说明可用), 并覆盖安装最新版本。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>审查超时</label><span class="set-hint" style="flex:1">大 MR 默认 60 分钟超时; 可在「审查偏好 → 审查超时」调大, 或调大「审查并发」加速。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>回填失败 / 500</label><span class="set-hint" style="flex:1">已自动清理残留脏审查记录; 若仍失败, 把日志右键「复制日志」发给管理员排查。</span></div>
+          <div class="set-row" style="align-items:flex-start"><label>历史回填提示切换仓库</label><span class="set-hint" style="flex:1">该记录属于其它仓库, 先在上方仓库下拉切到对应仓库再回填, 防止评论发错仓库。</span></div>
+        </div>
+      </div>
+
       <!-- 底部全局保存栏: 任何面板都可见 -->
       <div class="set-savebar">
         <button id="btn-save-settings" class="primary">保存全部设置</button>
