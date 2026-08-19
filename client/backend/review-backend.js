@@ -616,11 +616,22 @@ const OCR_BIN_NAME = 'opencodereview.exe';
 /** 中文输出注入指令(实测有效: 让 ocr 的 LLM 直接输出简体中文评论) */
 const ZH_BG_PROMPT = '你在对代码进行代码审查。所有审查评论必须使用简体中文撰写(变量名/函数名/API名/类型名等标识符保留英文), 每一条描述要清晰完整, 说明问题原因与影响。';
 
-/** 便携配置目录: 客户端根目录下的 .opencodereview(内网随程序走, 无需每机手工配置) */
+/** 便携配置目录: 客户端根目录下的 .opencodereview(内网随程序走, 无需每机手工配置)
+ *  注意: 打包后 __dirname 是 asar 虚拟路径(resources/app.asar/.., 不可写),
+ *  必须从 exe 的真实物理路径(app.asar.unpacked)推导, 否则 ocr 会在 app.asar 上建目录而失败 */
 let _portableHome = null;
 function ocrPortableHome() {
-  if (!_portableHome) {
-    _portableHome = path.join(__dirname, '..');   // backend/.. = 客户端根(dev: client/; 打包: resources/app.asar.unpacked/)
+  if (_portableHome) return _portableHome;
+  try {
+    const exe = findOcrExe();
+    if (exe && exe.includes('app.asar.unpacked' + path.sep)) {
+      _portableHome = exe.split('app.asar.unpacked')[0] + 'app.asar.unpacked';
+    } else {
+      _portableHome = path.join(__dirname, '..');   // dev: client/
+    }
+    fs.mkdirSync(path.join(_portableHome, '.opencodereview'), { recursive: true });
+  } catch (e) {
+    _portableHome = path.join(__dirname, '..');
     try { fs.mkdirSync(path.join(_portableHome, '.opencodereview'), { recursive: true }); } catch { }
   }
   return _portableHome;
