@@ -1137,16 +1137,21 @@ async function doReview() {
 }
 
 async function doFix() {
-  if (!currentTarget) return;
+  if (!currentTarget && !currentHistory) return;
+  // 只修复勾选的问题(与回填同一套勾选框); 一条都没勾=全部
+  const ids = Array.from(document.querySelectorAll('#comments .post-cb:checked')).map((b) => Number(b.dataset.idx));
+  const total = (currentComments || []).length;
+  const selIdx = (total > 0 && ids.length > 0 && ids.length < total) ? ids : null;   // 全选/无列表 → null(全量)
+  const n = selIdx ? `选中 ${selIdx.length}/${total} 条` : `全部 ${total || ''} 条`;
   if (currentTarget.type === 'mr') {
-    log(`启动自动修复 MR !${currentTarget.iid} ...`);
-    const r = await window.api.runAutoFix(currentTarget.iid);
+    log(`启动自动修复 MR !${currentTarget.iid}(仅修勾选: ${n}) ...`);
+    const r = await window.api.runAutoFix(currentTarget.iid, selIdx);
     if (r.ok) log(r.message || `✅ ${r.applied} 个修复已提交到 ${r.fixBranch}(仅本地)`);
     else log((r.message || r.error || '自动修复失败'), true);
     await refreshGate();
   } else {
-    log(`启动提交自动修复 ${String(currentTarget.sha).slice(0, 8)} ...`);
-    const r = await window.api.fixCommit(currentTarget.sha);
+    log(`启动提交自动修复 ${String(currentTarget.sha).slice(0, 8)}(仅修勾选: ${n}) ...`);
+    const r = await window.api.fixCommit(currentTarget.sha, selIdx);
     if (r.ok) log(r.message || `✅ ${r.applied} 个修复已提交到 ${r.fixBranch}(仅本地)`);
     else log((r.message || r.error || '自动修复失败'), true);
   }

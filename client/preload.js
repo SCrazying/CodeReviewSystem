@@ -14,7 +14,7 @@ contextBridge.exposeInMainWorld('api', {
   stopReview: () => ipcRenderer.invoke('review:stop'),
   postComments: (iid, comments, expectRepoKey, historyReview) => ipcRenderer.invoke('review:post', iid, comments, expectRepoKey, historyReview),
   commitPost: (sha, comments, historyReview) => ipcRenderer.invoke('commit:post', sha, comments, historyReview),
-  fixCommit: (sha) => ipcRenderer.invoke('fix:commit', sha),
+  fixCommit: (sha, selIdx) => ipcRenderer.invoke('fix:commit', sha, selIdx),
   openUrl: (url) => ipcRenderer.invoke('open:url', url),
   openCommit: (sha) => ipcRenderer.invoke('open:commit', sha),
   copyText: (text) => ipcRenderer.invoke('clip:write', text),
@@ -32,7 +32,7 @@ contextBridge.exposeInMainWorld('api', {
   listCommits: (branch, all) => ipcRenderer.invoke('commits:list', branch, all),
   runCommitReview: (sha) => ipcRenderer.invoke('commit:review', sha),
   // M4: 自动修复
-  runAutoFix: (iid) => ipcRenderer.invoke('fix:run', iid),
+  runAutoFix: (iid, selIdx) => ipcRenderer.invoke('fix:run', iid, selIdx),
   fixStatus: () => ipcRenderer.invoke('fix:status'),
   onLog: (cb) => ipcRenderer.on('log', (_e, line) => cb(line)),
   onRepoSwitched: (cb) => ipcRenderer.on('repo:switched', (_e, idx) => cb(idx)),

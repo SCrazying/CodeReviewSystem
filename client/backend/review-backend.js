@@ -201,6 +201,11 @@ class ReviewBackend {
       ];
       // ocr 并行审查: 最大并发文件数(设置可调, 默认 8)
       const cc = Number(this.config.concurrency) > 0 ? Number(this.config.concurrency) : 8;
+      // 审查深度: 快速=少轮数+过滤开(省token快出结果); 标准=默认; 深度=多工具轮数+不过滤(全量评论)
+      const depth = String(this.config.reviewDepth || 'standard').toLowerCase();
+      const maxTools = depth === 'fast' ? 10 : depth === 'deep' ? 40 : 0;   // 0=模板默认(min 10), 深度给 40 轮
+      if (maxTools > 0) args.push('--max-tools', String(maxTools));
+      if (depth === 'fast') args.push('--max-tokens', '3000');   // 快速: 单文件 prompt 上限压低
       args.push('--concurrency', String(cc));
       // ocr 内部并发超时: 略小于客户端审查超时(默认 60min - 5min 余量), 避免 ocr 默认 10min 先杀
       args.push('--timeout', String(Math.max(1, Math.round(tmoMs / 60000) - 5)));
@@ -272,6 +277,13 @@ class ReviewBackend {
       log(`审查提交 ${String(sha || '').slice(0, 8)} ...`);
       const cc = Number(this.config.concurrency) > 0 ? Number(this.config.concurrency) : 8;
       const args = ['review', '--commit', String(sha || ''), '--format', 'json', '--model', mdl, '--concurrency', String(cc)];
+      // 审查深度(同上)
+      {
+        const depth2 = String(this.config.reviewDepth || 'standard').toLowerCase();
+        const mt2 = depth2 === 'fast' ? 10 : depth2 === 'deep' ? 40 : 0;
+        if (mt2 > 0) args.push('--max-tools', String(mt2));
+        if (depth2 === 'fast') args.push('--max-tokens', '3000');
+      }
       args.push('--timeout', String(Math.max(1, Math.round(tmoMs / 60000) - 5)));   // ocr 内部超时与客户端对齐
       if (String(this.config.ocrLang || 'auto').trim() === 'zh') {
         args.push('--background', ZH_BG_PROMPT);

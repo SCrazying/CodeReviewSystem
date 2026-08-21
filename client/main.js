@@ -530,8 +530,12 @@ ipcMain.handle('review:run', async (e, iid) => {
   return r;
 });
 
-/** 自动修复(供自动流程和按钮共用) */
-async function autoFix(iid, review) {
+/** 自动修复(供自动流程和按钮共用); selComments=勾选的评论子集(不传=全部可修复问题) */
+async function autoFix(iid, review, selComments) {
+  if (Array.isArray(selComments) && review && Array.isArray(review.comments)) {
+    const ids = new Set(selComments);
+    review = { ...review, comments: review.comments.filter((_, k) => ids.has(k)) };
+  }
   if (!fixEngine) fixEngine = new FixEngine(loadConfig(), pushLog);
   let r = review;
   if (!r) {
@@ -687,24 +691,30 @@ ipcMain.handle('commit:post', async (e, sha, comments, historyReview) => {
 });
 
 // ---- M4: 自动修复 IPC ----
-ipcMain.handle('fix:run', async (e, iid) => {
+ipcMain.handle('fix:run', async (e, iid, selIdx) => {
   if (!gate || !gate.authorized) return { ok: false, error: '今日未通过服务端授权' };
   if (!backend) return { ok: false, error: '请先保存配置' };
-  // 优先用最近一次审查结果(同仓库+同 MR); 无则现审 MR
-  const r = await autoFix(iid, lastReview && lastReview.mrId === Number(iid) && lastReview.ok && (!lastReview.repoKey || lastReview.repoKey === currentRepoKey()) ? lastReview : null);
+  // 优先用最近一次审查结果(同仓库+同 MR); 无则现审 MR; selIdx=勾选的评论下标(按选中修复)
+  const r = await autoFix(iid, lastReview && lastReview.mrId === Number(iid) && lastReview.ok && (!lastReview.repoKey || lastReview.repoKey === currentRepoKey()) ? lastReview : null, selIdx);
   pushLog(r.message || r.error || '');
   return r;
 });
 
 // 提交审查的自动修复: 从该提交创建修复分支 fix/ai/commit-<sha>, 逐问题 commit
-ipcMain.handle('fix:commit', async (e, sha) => {
+ipcMain.handle('fix:commit', async (e, sha, selIdx) => {
   if (!gate || !gate.authorized) return { ok: false, error: '今日未通过服务端授权' };
   if (!backend) return { ok: false, error: '请先保存配置' };
   const review = lastReview && lastReview.commitSha === String(sha) && lastReview.ok ? lastReview : null;
   if (!review) return { ok: false, error: '请先审查该提交, 再自动修复' };
   if (!fixEngine) fixEngine = new FixEngine(loadConfig(), pushLog);
   pushLog(`🚀 提交自动修复: ${String(sha).slice(0, 8)} ...`);
-  const fr = await fixEngine.runFix(review, 'commit:' + String(sha));
+  let _sel = review;
+  if (Array.isArray(selIdx) && review && Array.isArray(review.comments)) {
+    const _ids = new Set(selIdx);
+    _sel = { ...review, comments: review.comments.filter((_, k) => _ids.has(k)) };
+  }
+  const fr = await fixEngine.runFix(_sel, 'commit:' + String(sha));
+
   if (fr.ok) { lastFix = fr; try { reportFix(review, fr); } catch (e) { pushLog('⚠️ 修复记录上报失败: ' + e.message); } }
   pushLog(fr.ok ? `✅ ${fr.message || `${fr.applied} 个修复已提交到 ${fr.fixBranch} (仅本地)`}` : `❌ ${fr.error || fr.message || '自动修复失败'}`);
   return fr;
