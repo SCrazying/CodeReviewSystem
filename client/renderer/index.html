@@ -268,6 +268,14 @@
         <div class="set-group">
           <div class="set-title">新建任务</div>
           <div class="set-row"><label>任务名称</label><input id="sched-name" class="set-input" style="width:220px" placeholder="例如 每日晨扫"></div>
+          <div class="set-row"><label>任务动作</label>
+            <select id="sched-action" class="set-input" style="width:220px">
+              <option value="scan">扫描待合入 MR(发现新 MR 提示)</option>
+              <option value="review">自动审查新 MR(存历史+通知)</option>
+              <option value="review_post">自动审查并回填评论</option>
+            </select>
+            <span class="set-hint" style="align-self:center">按频率检查该仓库的待合入 MR, 对新增 MR 执行所选动作</span>
+          </div>
           <div class="set-row"><label>仓库</label><select id="sched-repo" class="set-input" style="width:220px"></select></div>
           <div class="set-row"><label>扫描频率</label>
             <select id="sched-interval" class="set-input" style="width:220px">
@@ -695,6 +703,7 @@ async function renderSchedList() {
       row.innerHTML = `
         <span style="flex:0 0 140px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.name)}">${esc(t.name)}</span>
         <span style="flex:0 0 130px;color:var(--muted)">${esc((repos[Number(t.repoIndex)] || {}).name || (repos[Number(t.repoIndex)] || {}).project || '仓库?' )}</span>
+        <span style="flex:0 0 150px;color:var(--accent);font-size:11.5px">${t.action === 'review' ? '🤖 自动审查' : t.action === 'review_post' ? '⚡ 审查+回填' : '👁 仅扫描'}</span>
         <span style="flex:0 0 80px;color:var(--muted)">每 ${t.intervalMin % 60 === 0 ? (t.intervalMin % 1440 === 0 ? t.intervalMin / 1440 + ' 天' : t.intervalMin / 60 + ' 时') : t.intervalMin + ' 分'}</span>
         <span style="flex:0 0 90px;color:var(--muted)">${t.startTime ? '⏱ ' + esc(t.startTime) : '立即'}</span>
         <span style="flex:1;color:var(--muted);font-size:11.5px">${t.lastTs ? '上次 ' + new Date(t.lastTs).toLocaleTimeString() : '未触发'}</span>
@@ -726,6 +735,7 @@ async function createSched() {
   if (!name) { $('sched-msg').textContent = '请填写任务名称'; return; }
   const t = {
     name,
+    action: $('sched-action').value || 'scan',
     repoIndex: Number($('sched-repo').value) || 0,
     intervalMin: Number($('sched-interval').value) || 60,
     startTime: $('sched-start').value || '',
@@ -804,7 +814,9 @@ async function saveAllSettings() {
   applyAppearance(cfg);
   // 保存后拉取拆分后的配置(地址含项目 → 自动拆出项目字段回显)
   const cfg2 = r && r.ok ? await window.api.getConfig() : cfg;
+  window.__lastCfg = cfg2;              // 同步内存配置: 防后续渲染用到过期数据
   renderRepoSelects(cfg2);
+  renderSchedPanel(cfg2);               // 定时任务面板同步刷新(schedules 持久化后此处可见最新列表)
   $('set-msg').style.color = 'var(--green)';
   $('set-msg').textContent = r && r.ok ? '✅ 已保存' : '❌ ' + ((r && r.error) || '保存失败');
   await refreshGate();

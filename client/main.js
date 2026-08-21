@@ -140,6 +140,7 @@ function restartScheduler() {
   pushLog(`⏰ 客户端定时任务已启动: ${tasks.length} 个启用任务`);
   schedTick();
 }
+let _schedBusy = false;   // 定时审查互斥(手动审查优先, 定时任务避让)
 async function schedTick() {
   const tasks = getSchedules().filter((t) => t.enabled);
   const now = Date.now();
@@ -147,12 +148,52 @@ async function schedTick() {
     const st = schedState[t.id] = schedState[t.id] || { lastTs: 0, lastIds: new Set() };
     if (now >= nextScanTime(t, st)) {
       st.lastTs = now;
-      await scanRepoForSched(t, st);
+      try {
+        await scanRepoForSched(t, st);
+      } catch (e) { pushLog(`⏰ [${t.name}] 异常: ${(e && e.message || e + '').slice(0, 140)}`); }
       if (win && !win.isDestroyed()) win.webContents.send('schedule:tick', { id: t.id, lastTs: now, name: t.name });
     }
   }
 }
-/** 用独立 backend 扫描指定仓库(不打断当前激活仓库), 发现新 MR 通知渲染进程 */
+/** 定时任务动作:
+ *  scan        扫描待合入 MR, 发现新增 → 日志+刷新列表(原有行为)
+ *  review      发现新增 MR → 自动审查(翻译+存历史), 手动审查进行中则跳过本轮
+ *  review_post 自动审查并回填评论到 MR(带 AI 标记去重)
+ */
+async function runSchedAction(task, st, mrList) {
+  const act = String(task.action || 'scan');
+  if (act === 'scan') return;   // 扫描已在 scanRepoForSched 内完成
+  const fresh = st.lastIds.size ? mrList.filter((x) => !st.lastIds.has(x.iid)) : [];
+  if (!fresh.length) { pushLog(`⏰ [${task.name}] 无新增 MR, 跳过${act === 'review_post' ? '审查回填' : '审查'}`); return; }
+  if (_schedBusy) { pushLog(`⏰ [${task.name}] 上轮定时审查未结束/手动审查中, 本轮跳过(${fresh.length} 个新 MR)`); return; }
+  _schedBusy = true;
+  const idx = Number(task.repoIndex);
+  const cfg = loadConfig();
+  const repos = Array.isArray(cfg.repos) ? cfg.repos : [];
+  const repoCfg = repos[idx] || {};
+  let b = null;
+  try {
+    b = new ReviewBackend({ ...cfg, url: repoCfg.url || cfg.url, token: repoCfg.token || cfg.token, project: repoCfg.project || cfg.project, repoDir: repoCfg.repoDir || cfg.repoDir }, () => {});
+    for (const mr of fresh) {
+      pushLog(`⏰ [${task.name}] 🤖 自动审查新 MR !${mr.iid}(${act === 'review_post' ? '审查后自动回填' : '仅审查'}) ...`);
+      const r = await b.runReview(mr.iid, (line) => pushLog('  ' + line), cfg.model);
+      if (!r.ok) { pushLog(`⏰ [${task.name}] ❌ MR !${mr.iid} 审查失败: ${r.error || '未知'}`); continue; }
+      r.repoKey = repoKeyOf({ url: repoCfg.url || cfg.url, project: repoCfg.project || cfg.project, repoDir: repoCfg.repoDir || cfg.repoDir });
+      saveReviewHistory(r, { repoKey: r.repoKey, repoProject: repoCfg.project || '', object: `MR !${mr.iid}`, iid: mr.iid });
+      pushLog(`⏰ [${task.name}] ✅ MR !${mr.iid} 审查完成: ${r.comments.length} 条问题(已存历史)`);
+      notify(`⏰ 定时审查 · MR !${mr.iid}`, `${task.name}: 发现 ${r.comments.length} 条问题`);
+      if (act === 'review_post' && r.comments.length > 0) {
+        const pr = await b.postComments(mr.iid, (line) => pushLog('  ' + line), r);
+        pushLog(pr.ok ? `⏰ [${task.name}] ⚙ 已回填 ${pr.posted} 条评论到 MR !${mr.iid}` : `⏰ [${task.name}] ⚠ 回填失败: ${pr.error}`);
+      }
+    }
+  } finally {
+    if (b) { try { b.close && b.close(); } catch {} }
+    _schedBusy = false;
+  }
+}
+
+/** 用独立 backend 扫描指定仓库(不打断当前激活仓库), 按动作执行扫描/审查 */
 async function scanRepoForSched(task, st) {
   const idx = Number(task.repoIndex);
   const cfg = loadConfig();
@@ -167,8 +208,10 @@ async function scanRepoForSched(task, st) {
       const ids = new Set(r.mrs.map((m) => m.iid));
       const fresh = st.lastIds.size ? r.mrs.filter((m) => !st.lastIds.has(m.iid)) : [];
       st.lastIds = ids;
-      pushLog(`⏰ [${task.name}] ${repos[idx].name || repos[idx].project}: ${r.mrs.length} 个待合入 MR${fresh.length ? ' · 🆕 新增 ' + fresh.map((m) => '!' + m.iid).join(', ') : ''}`);
+      pushLog(`⏰ [${task.name}] ${repos[idx].name || repos[idx].project}: ${r.mrs.length} 个待合入 MR${fresh.length ? ' · 🆕 新增 ' + fresh.map((mm) => '!' + mm.iid).join(', ') : ''}`);
       if (fresh.length && win && !win.isDestroyed()) win.webContents.send('mrs:refresh', idx);
+      // 动作分发: scan 已完成; review / review_post 在此触发
+      if (String(task.action || 'scan') !== 'scan') await runSchedAction(task, st, r.mrs);
     } else {
       pushLog(`⏰ [${task.name}] 扫描失败: ${r.error || '未知'}`);
     }
@@ -185,7 +228,8 @@ ipcMain.handle('schedule:create', (e, t) => {
   if (!t || !String(t.name || '').trim()) return { ok: false, error: '请填写任务名称' };
   const id = 's' + Date.now() + Math.floor(Math.random() * 1000);
   const list = getSchedules();
-  list.push({ id, name: String(t.name).trim(), repoIndex: Number(t.repoIndex) || 0, intervalMin: Number(t.intervalMin) || 60, startTime: String(t.startTime || '').trim(), enabled: t.enabled !== false });
+  const act = ['scan', 'review', 'review_post'].includes(String(t.action)) ? String(t.action) : 'scan';
+  list.push({ id, name: String(t.name).trim(), action: act, repoIndex: Number(t.repoIndex) || 0, intervalMin: Number(t.intervalMin) || 60, startTime: String(t.startTime || '').trim(), enabled: t.enabled !== false });
   saveSchedules(list);
   restartScheduler();
   pushLog(`⏰ 已创建定时任务「${list[list.length - 1].name}」`);
@@ -337,6 +381,8 @@ ipcMain.handle('config:save', async (e, cfg) => {
     fontSize: String(cfg.fontSize || 'medium').trim(),
     // 客户端定时任务: 扫描待合入 MR(分钟, 0=关闭)
     scheduleInterval: Number(cfg.scheduleInterval) >= 0 ? Number(cfg.scheduleInterval) : 0,
+    // 客户端定时任务列表(config:save 不再丢弃; 由 schedule:create/update/delete 单独维护)
+    schedules: Array.isArray(prev.schedules) ? prev.schedules : [],
     // 多仓库
     repos,
     activeRepo: typeof cfg.activeRepo === 'number' ? cfg.activeRepo : (prev.activeRepo || 0),
