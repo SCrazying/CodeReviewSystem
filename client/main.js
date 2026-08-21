@@ -324,6 +324,8 @@ ipcMain.handle('config:save', async (e, cfg) => {
     concurrency: Number(cfg.concurrency) > 0 ? Math.min(Number(cfg.concurrency), 32) : 8,
     // 审查超时(分钟, 默认 60)
     reviewTimeout: Number(cfg.reviewTimeout) > 0 ? Math.min(Number(cfg.reviewTimeout), 480) : 60,
+    // LLM 单请求超时(秒, 默认 300, 0=不限制用 ocr 默认)
+    llmTimeout: Number.isFinite(Number(cfg.llmTimeout)) ? Math.max(0, Math.min(Number(cfg.llmTimeout), 3600)) : 300,
     // LLM(自动修复引擎)
     llmBaseUrl: String(cfg.llmBaseUrl || '').trim(),
     llmApiKey: String(cfg.llmApiKey || '').trim(),
@@ -740,7 +742,7 @@ async function translateComments(comments, cfg) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
       body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0.1, max_tokens: 2500 }),
-      signal: AbortSignal.timeout(90000),
+      signal: AbortSignal.timeout(Math.max(30, Number(cfg.llmTimeout) > 0 ? Number(cfg.llmTimeout) * 1000 : 300000))   // 跟随「LLM 单请求超时」设置,
     });
     if (!res.ok) { pushLog(`⚠ 翻译失败: HTTP ${res.status}, 保留原文`); return comments; }
     const data = await res.json();

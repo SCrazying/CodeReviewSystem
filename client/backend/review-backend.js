@@ -811,6 +811,9 @@ function runNative(exePath, args, cwd, cfg, log = () => {}, timeoutMs = 60 * 60 
   if (url) env.OCR_LLM_URL = url;
   if (key) env.OCR_LLM_TOKEN = key;
   if (model) env.OCR_LLM_MODEL = model;
+  // LLM 单请求超时(秒): 设置项 llmTimeout, >0 时注入(0 = 用 ocr 内置默认)
+  const lt = Number(this.config.llmTimeout);
+  if (Number.isFinite(lt) && lt > 0) env.OCR_LLM_TIMEOUT = String(Math.round(lt));
   return runChild(exePath, args, cwd, model, env, timeoutMs);
 }
 

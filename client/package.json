@@ -44,6 +44,6 @@
     ]
   },
   "dependencies": {
-    "@alibaba-group/open-code-review": "^1.9.5"
+    "@alibaba-group/open-code-review": "^1.9.8"
   }
 }

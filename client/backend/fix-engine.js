@@ -33,7 +33,7 @@ class FixEngine {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + this.llmKey },
       body: JSON.stringify({ model: this.llmModel, temperature: 0.1, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
-      signal: AbortSignal.timeout(120000),
+      signal: AbortSignal.timeout(Math.max(30, Number(this.config.llmTimeout) > 0 ? Number(this.config.llmTimeout) * 1000 : 300000)),   // LLM 单请求超时: 跟随设置(默认300s, 最小30s)
     });
     if (!resp.ok) throw new Error('LLM HTTP ' + resp.status + ': ' + (await resp.text()).slice(0, 200));
     const data = await resp.json();
