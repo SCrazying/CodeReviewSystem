@@ -205,7 +205,10 @@ class ReviewBackend {
       const depth = String(this.config.reviewDepth || 'standard').toLowerCase();
       const maxTools = depth === 'fast' ? 10 : depth === 'deep' ? 40 : 0;   // 0=模板默认(min 10), 深度给 40 轮
       if (maxTools > 0) args.push('--max-tools', String(maxTools));
-      if (depth === 'fast') args.push('--max-tokens', '3000');   // 快速: 单文件 prompt 上限压低
+      // 每文件提示词上限(设置项 maxFileTokens, 0=引擎默认); 快速深度仍强制压低
+      const mft = Number(this.config.maxFileTokens);
+      if (depth === 'fast') args.push('--max-tokens', '3000');
+      else if (Number.isFinite(mft) && mft > 0) args.push('--max-tokens', String(Math.round(mft)));
       args.push('--concurrency', String(cc));
       // ocr 内部并发超时: 略小于客户端审查超时(默认 60min - 5min 余量), 避免 ocr 默认 10min 先杀
       args.push('--timeout', String(Math.max(1, Math.round(tmoMs / 60000) - 5)));
@@ -283,6 +286,10 @@ class ReviewBackend {
         const mt2 = depth2 === 'fast' ? 10 : depth2 === 'deep' ? 40 : 0;
         if (mt2 > 0) args.push('--max-tools', String(mt2));
         if (depth2 === 'fast') args.push('--max-tokens', '3000');
+        else {
+          const mft2 = Number(this.config.maxFileTokens);
+          if (Number.isFinite(mft2) && mft2 > 0) args.push('--max-tokens', String(Math.round(mft2)));
+        }
       }
       args.push('--timeout', String(Math.max(1, Math.round(tmoMs / 60000) - 5)));   // ocr 内部超时与客户端对齐
       if (String(this.config.ocrLang || 'auto').trim() === 'zh') {

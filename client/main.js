@@ -326,6 +326,8 @@ ipcMain.handle('config:save', async (e, cfg) => {
     reviewTimeout: Number(cfg.reviewTimeout) > 0 ? Math.min(Number(cfg.reviewTimeout), 480) : 60,
     // LLM 单请求超时(秒, 默认 300, 0=不限制用 ocr 默认)
     llmTimeout: Number.isFinite(Number(cfg.llmTimeout)) ? Math.max(0, Math.min(Number(cfg.llmTimeout), 3600)) : 300,
+    // 每文件提示词 token 上限(默认 58888, 0 = 用引擎内置值)
+    maxFileTokens: Number.isFinite(Number(cfg.maxFileTokens)) ? Math.max(0, Math.min(Number(cfg.maxFileTokens), 1000000)) : 58888,
     // LLM(自动修复引擎)
     llmBaseUrl: String(cfg.llmBaseUrl || '').trim(),
     llmApiKey: String(cfg.llmApiKey || '').trim(),

@@ -257,6 +257,7 @@
           <div class="set-row"><label>审查并发</label><input id="set-concurrency" type="number" min="1" max="32" value="8" class="set-input" style="width:90px"><span class="set-hint">ocr 同时审查的最大文件数(默认 8, 网络快可加大提速)</span></div>
           <div class="set-row"><label>审查超时(分钟)</label><input id="set-timeout" type="number" min="5" max="480" value="60" class="set-input" style="width:90px"><span class="set-hint">审查超过该时长自动终止(默认 60 分钟, 大 MR 可调大)</span></div>
           <div class="set-row"><label>LLM 单请求超时(秒)</label><input id="set-llm-timeout" type="number" min="0" max="3600" step="30" value="300" class="set-input" style="width:90px"><span class="set-hint">单个 LLM 请求的最长等待时间, 超时自动重试下一文件(默认 300 秒, 0 = 用引擎内置值; 卡死/慢网可调小)</span></div>
+          <div class="set-row"><label>每文件提示词上限</label><input id="set-max-file-tokens" type="number" min="0" step="1000" value="58888" class="set-input" style="width:110px"><span class="set-hint">单文件送入 LLM 的 prompt token 上限(默认 58,888; 超大文件自动截断; 0 = 引擎内置值)</span></div>
           <div class="set-row"><label>推送失败上限</label><input id="set-pushtries" type="number" min="1" max="20" value="3" class="set-input" style="width:90px"><span class="set-hint">连续推送失败超过该次数自动停止重试(手动点「📤 推送」可恢复)</span></div>
         </div>
       </div>
@@ -659,6 +660,7 @@ function loadSettingsUI(cfg) {
   $('set-concurrency').value = cfg.concurrency || 8;
   $('set-timeout').value = cfg.reviewTimeout || 60;
   $('set-llm-timeout').value = (cfg.llmTimeout === 0 || cfg.llmTimeout) ? cfg.llmTimeout : 300;
+  $('set-max-file-tokens').value = (cfg.maxFileTokens === 0 || cfg.maxFileTokens) ? cfg.maxFileTokens : 58888;
   $('set-ocrlang').value = cfg.ocrLang || 'auto';
   // 模型服务(直接填完整 API 地址)
   $('llm-host').value = (cfg.llmBaseUrl || '').replace(/\/+$/, '');
@@ -768,6 +770,7 @@ function collectSettings() {
     concurrency: Number($('set-concurrency').value) || 8,
     reviewTimeout: Number($('set-timeout').value) || 60,
     llmTimeout: Number($('set-llm-timeout').value) === 0 ? 0 : (Number($('set-llm-timeout').value) || 300),
+    maxFileTokens: Number($('set-max-file-tokens').value) >= 0 ? (Number($('set-max-file-tokens').value) || 0) : 58888,
     pushMaxTries: Number($('set-pushtries').value) || 3,
     llmBaseUrl: $('llm-host').value.trim().replace(/\/+$/, ''),
     llmApiKey: $('llm-apikey').value.trim(),
