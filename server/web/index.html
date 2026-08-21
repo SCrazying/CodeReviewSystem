@@ -27,6 +27,12 @@ th { color:var(--muted); font-weight:600; }
 .tag.medium { background:rgba(210,153,34,.15); color:var(--yellow); }
 .tag.low { background:rgba(63,185,80,.15); color:var(--green); }
 .hidden { display:none; }
+.bar-wrap { display:flex; align-items:center; gap:8px; margin:4px 0; }
+.bar { height:14px; border-radius:3px; min-width:2px; }
+.pct-bar { height:18px; border-radius:4px; overflow:hidden; display:flex; margin:6px 0; }
+.mini-cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:12px; }
+.badge-trivial { background:rgba(63,185,80,.15); color:var(--green); padding:1px 8px; border-radius:10px; font-size:11px; }
+.badge-discussion { background:rgba(47,129,247,.2); color:var(--accent); padding:1px 8px; border-radius:10px; font-size:11px; }
 </style>
 </head>
 <body>
@@ -77,6 +83,8 @@ th { color:var(--muted); font-weight:600; }
   <h2>总览</h2>
   <div class="stat-grid" id="overview"></div>
 
+  <div id="dash-extra"></div>
+
   <h2>最近审查记录</h2>
   <div class="card">
     <table id="reviews-tbl">
@@ -117,6 +125,33 @@ $('btn-login').onclick = async () => {
 };
 $('btn-logout').onclick = logout;
 
+function showReview(id) {
+  api('/reviews/' + id).then(function(r) {
+    const iss = r.issues || [];
+    const lines = iss.map(function(i) { return '[' + i.severity + '] ' + i.category + ' · ' + i.path + ':' + (i.start_line || '?') + '\n    ' + String(i.content || '').slice(0, 100); });
+    openModal('审查 #' + id + ' — ' + iss.length + ' 条问题',
+      '<table style="width:100%"><thead><tr><th>级别</th><th>类别</th><th>位置</th><th>内容</th></tr></thead><tbody>' +
+      iss.map(function(i) { return '<tr><td><span class="tag ' + i.severity + '">' + i.severity + '</span></td><td>' + esc(i.category || '-') + '</td>' +
+        '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis" title="' + esc(i.path) + '">' + esc(i.path.split('/').pop()) + ':' + (i.start_line || '?') + '</td>' +
+        '<td style="max-width:340px;white-space:normal">' + esc(String(i.content || '').slice(0, 160)) + '</td></tr>'; }).join('') +
+      '</tbody></table>');
+  }).catch(function(e) { alert('加载失败: ' + e.message); });
+}
+
+function openModal(title, html) {
+  let m = document.getElementById('modal');
+  if (!m) {
+    m = document.createElement('div'); m.id = 'modal';
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:99';
+    document.body.appendChild(m);
+  }
+  m.style.display = 'flex';
+  m.innerHTML = '<div class="card" style="width:min(860px,92vw);max-height:82vh;overflow:auto">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b>' + title + '</b>' +
+    '<button onclick="document.getElementById(\'modal\').style.display=\'none\'">✕ 关闭</button></div>' + html + '</div>';
+  m.onclick = function(ev) { if (ev.target === m) m.style.display = 'none'; };
+}
+
 async function loadAll() {
   // 总览
   try {
@@ -141,7 +176,9 @@ async function loadAll() {
         <td>${r.target_type}#${esc(r.target_id)}</td><td>${esc(r.target_title || '').slice(0, 30)}</td>
         <td style="color:var(--muted)">见详情</td><td>${fmt(r.input_tokens)}/${fmt(r.output_tokens)}</td>
         <td>${r.request_count}</td><td>${new Date(r.created_at).toLocaleString()}</td>
+        <td><button data-rid="${r.id}">📋 明细</button></td>
       </tr>`).join('');
+    document.querySelectorAll('#reviews-body button[data-rid]').forEach(function(btn) { btn.onclick = function() { showReview(Number(btn.getAttribute('data-rid'))); }; });
   } catch (e) { console.error(e); }
 
   // 分类
@@ -150,6 +187,51 @@ async function loadAll() {
     $('cat-body').innerHTML = c.map((x) => `<tr><td>${esc(x.category || '未分类')}</td><td>${x.c}</td><td>${x.critical}</td></tr>`).join('');
   } catch (e) { console.error(e); }
 
+  // 工具价值量化看板
+  try {
+    const d = await api('/stats/dashboard?days=30');
+    const maxIss = Math.max.apply(null, d.trend.map(function(x){return x.issues;}).concat([1]));
+    const trendBars = d.trend.map(function(t) {
+      const hh = Math.max(Math.round(t.issues / maxIss * 46), t.issues ? 3 : 1);
+      return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px" title="' + t.day + ': ' + t.reviews + ' 次审查 / ' + t.issues + ' 问题">' +
+        '<div style="font-size:9px;color:var(--muted)">' + (t.issues || '') + '</div>' +
+        '<div class="bar" style="width:70%;height:' + hh + 'px;background:' + (t.issues ? 'var(--accent)' : '#21262d') + '"></div>' +
+        '<div style="font-size:9px;color:var(--muted);white-space:nowrap">' + t.day.slice(3) + '</div></div>';
+    }).join('');
+    const catRows = d.byCategory.map(function(c) {
+      return '<tr><td>' + esc(c.category) + '</td><td><b>' + c.c + '</b></td>' +
+        '<td style="color:var(--red)">' + (c.high || '-') + '</td><td style="color:var(--yellow)">' + (c.medium || '-') + '</td><td style="color:var(--green)">' + (c.low || '-') + '</td></tr>';
+    }).join('');
+    const repoRows = d.byRepo.map(function(r) {
+      return '<tr><td>' + esc(r.name) + '</td><td>' + r.reviews + '</td><td><b>' + r.issues + '</b></td>' +
+        '<td style="color:var(--red)">' + (r.high || 0) + '</td><td style="color:var(--green)">' + (r.low || 0) + '</td></tr>';
+    }).join('');
+    const fileRows = d.topFiles.map(function(x) {
+      const nm = x.path.split('/').pop();
+      return '<div class="bar-wrap"><span style="flex:0 0 260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px" title="' + esc(x.path) + '">' + esc(nm) + '</span>' +
+        '<div class="bar" style="flex:0 0 ' + Math.max(x.c * 8, 4) + 'px;background:' + (x.high ? 'var(--red)' : 'var(--accent)') + '"></div><span style="color:var(--muted);font-size:11px">' + x.c + '</span></div>';
+    }).join('');
+    $('dash-extra').innerHTML =
+      '<h2>🎯 工具价值量化(近30天)</h2>' +
+      '<div class="card"><div class="pct-bar">' +
+        '<div style="flex:0 0 ' + d.grade.trivialPct + '%;background:#238636;color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center">低级 ' + d.grade.trivialPct + '%</div>' +
+        '<div style="flex:1;background:#1f6feb;color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center">值得讨论 ' + (100 - d.grade.trivialPct) + '%</div>' +
+      '</div>' +
+      '<div class="mini-cols" style="margin-top:10px">' +
+        '<div><b style="color:var(--green)">✅ 低级问题 ' + d.grade.trivial + '</b> <span class="badge-trivial">可批量忽略</span>' +
+          '<div style="color:var(--muted);font-size:11.5px;margin-top:4px">风格/命名/注释类(severity low) — 不值得逐条讨论, 可批量忽略</div></div>' +
+        '<div><b style="color:var(--accent)">💬 值得讨论的问题 ' + d.grade.discussion + '</b> <span class="badge-discussion">人工评审重点</span>' +
+          '<div style="color:var(--muted);font-size:11.5px;margin-top:4px">bug/security/performance 等高价值发现 — 建议拿到评审会过</div></div>' +
+      '</div></div>' +
+      '<div class="mini-cols" style="margin-top:12px">' +
+        '<div class="card"><b>📅 每日问题趋势</b><div style="display:flex;align-items:flex-end;height:70px;margin-top:8px;gap:2px">' + trendBars + '</div></div>' +
+        '<div class="card"><b>📁 问题最集中文件 TOP10</b><div style="margin-top:8px">' + (fileRows || '<span style="color:var(--muted)">暂无</span>') + '</div></div>' +
+      '</div>' +
+      '<div class="mini-cols" style="margin-top:12px">' +
+        '<div class="card"><b>🏷️ 问题分类 × 严重度</b><table style="margin-top:6px"><thead><tr><th>类别</th><th>总数</th><th>高</th><th>中</th><th>低</th></tr></thead><tbody>' + catRows + '</tbody></table></div>' +
+        '<div class="card"><b>📦 各仓库审查效果排行</b><table style="margin-top:6px"><thead><tr><th>仓库</th><th>审查次数</th><th>问题数</th><th>高危</th><th>轻微</th></tr></thead><tbody>' + repoRows + '</tbody></table></div>' +
+      '</div>';
+  } catch (e) { console.error('dashboard', e); }
   // 用量
   try {
     const u = await api('/stats/usage');

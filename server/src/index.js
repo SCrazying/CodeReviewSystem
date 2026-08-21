@@ -228,6 +228,83 @@ app.get('/api/stats/usage', requireAdmin, async (req, res) => {
   res.json(r.rows);
 });
 
+// ---- 看板聚合(管理端): 工具价值量化 ----
+// 问题分级: 低级问题(可忽略/批量处理) vs 值得讨论(有技术含量, 需人工评审)
+app.get('/api/stats/dashboard', requireAdmin, async (req, res) => {
+  const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 365);
+  try {
+    // 总览
+    const ov = await pool.query(
+      `SELECT
+         (SELECT count(*)::int FROM reviews WHERE created_at >= now() - ($1 || ' days')::interval) AS reviews,
+         (SELECT count(*)::int FROM review_issues i JOIN reviews v ON v.id=i.review_id WHERE v.created_at >= now() - ($1 || ' days')::interval) AS issues,
+         (SELECT count(DISTINCT repo_name)::int FROM reviews WHERE created_at >= now() - ($1 || ' days')::interval) AS repos_covered,
+         (SELECT coalesce(sum(duration_ms),0)::bigint FROM reviews WHERE created_at >= now() - ($1 || ' days')::interval) AS total_ms,
+         (SELECT count(*)::int FROM review_issues i JOIN reviews v ON v.id=i.review_id WHERE v.created_at >= now() - ($1 || ' days')::interval AND i.fix_status='fixed') AS fixed`,
+      [days]);
+    const o = ov.rows[0];
+
+    // 分级: 低级 vs 值得讨论(按严重度+类别双维判定)
+    const grade = await pool.query(
+      `SELECT
+         CASE WHEN i.severity IN ('low','info','note','nit','style')
+                    OR lower(coalesce(i.category,'')) IN ('style','format','naming','comment','documentation','other','chore')
+              THEN 'trivial' ELSE 'discussion' END AS grade,
+         count(*)::int AS c
+       FROM review_issues i JOIN reviews v ON v.id=i.review_id
+       WHERE v.created_at >= now() - ($1 || ' days')::interval
+       GROUP BY 1`, [days]);
+    const g = { trivial: 0, discussion: 0 };
+    for (const row of grade.rows) g[row.grade] = row.c;
+
+    // 客户端/来源维度排行(reviews.source 目前都是 client; machine 维度后续加)
+    const byRepo = await pool.query(
+      `SELECT v.repo_name AS name,
+              count(DISTINCT v.id)::int AS reviews,
+              count(i.id)::int AS issues,
+              sum(CASE WHEN i.severity IN ('high','critical','security') THEN 1 ELSE 0 END)::int AS high,
+              sum(CASE WHEN i.severity IN ('low','info','note','nit','style') THEN 1 ELSE 0 END)::int AS low,
+              coalesce(sum(v.duration_ms),0)::bigint AS ms
+       FROM reviews v LEFT JOIN review_issues i ON i.review_id=v.id
+       WHERE v.created_at >= now() - ($1 || ' days')::interval
+       GROUP BY v.repo_name ORDER BY issues DESC LIMIT 15`, [days]);
+
+    // 分类×严重度矩阵(量化"哪类问题最多")
+    const byCat = await pool.query(
+      `SELECT coalesce(nullif(i.category,''),'(未分类)') AS category,
+              count(*)::int AS c,
+              sum(CASE WHEN i.severity IN ('high','critical','security') THEN 1 ELSE 0 END)::int AS high,
+              sum(CASE WHEN i.severity = 'medium' THEN 1 ELSE 0 END)::int AS medium,
+              sum(CASE WHEN i.severity IN ('low','info','note','nit','style') THEN 1 ELSE 0 END)::int AS low
+       FROM review_issues i JOIN reviews v ON v.id=i.review_id
+       WHERE v.created_at >= now() - ($1 || ' days')::interval
+       GROUP BY 1 ORDER BY c DESC LIMIT 20`, [days]);
+
+    // 日趋势(审查次数+问题数)
+    const trend = await pool.query(
+      `SELECT to_char(d.day,'MM-DD') AS day,
+              coalesce((SELECT count(*)::int FROM reviews v WHERE date_trunc('day',v.created_at)=d.day),0) AS reviews,
+              coalesce((SELECT count(*)::int FROM review_issues i JOIN reviews v ON v.id=i.review_id WHERE date_trunc('day',v.created_at)=d.day),0) AS issues
+       FROM generate_series(date_trunc('day', now()) - (($1::int-1) || ' days')::interval, date_trunc('day', now()), '1 day') d(day)
+       ORDER BY d.day`, [days]);
+
+    // 高频问题 Top 文件(问题集中地)
+    const topFiles = await pool.query(
+      `SELECT i.path, count(*)::int AS c,
+              sum(CASE WHEN i.severity IN ('high','critical','security') THEN 1 ELSE 0 END)::int AS high
+       FROM review_issues i JOIN reviews v ON v.id=i.review_id
+       WHERE v.created_at >= now() - ($1 || ' days')::interval
+       GROUP BY i.path ORDER BY c DESC LIMIT 10`, [days]);
+
+    res.json({
+      overview: { reviews: o.reviews, issues: o.issues, reposCovered: o.repos_covered,
+                  avgMinutes: o.reviews ? Math.round(o.total_ms / o.reviews / 60000 * 10) / 10 : 0, fixed: o.fixed },
+      grade: { trivial: g.trivial, discussion: g.discussion,
+               trivialPct: o.issues ? Math.round(g.trivial / o.issues * 100) : 0 },
+      byRepo: byRepo.rows, byCategory: byCat.rows, trend: trend.rows, topFiles: topFiles.rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ---- 定时任务(管理端) ----
 app.get('/api/tasks', requireAdmin, async (_req, res) => {
   const r = await pool.query(
