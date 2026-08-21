@@ -156,8 +156,9 @@ class ReviewBackend {
   /** 手动停止当前进行中的审查(终止 ocr 子进程) */
   stopReview(log = () => {}) { return stopActiveRun(log); }
 
-  /** 执行 ocr review, 返回评论数组 */
-  async runReview(iid, log = () => {}) {
+  /** 执行 ocr review, 返回评论数组.
+   *  @param historyMode  true=历史 MR(已合入/关闭), 无目标分支 diff, 改用 --commit 审查该 MR 引入的提交 */
+  async runReview(iid, log = () => {}, model, historyMode = false) {
     try {
       const mr = await this.getMr(iid);
       const repoDir = this.config.repoDir;
@@ -169,7 +170,13 @@ class ReviewBackend {
       const f1 = await this._git(repoDir, ['fetch', 'origin']);
       if (!f1.ok) return { ok: false, error: 'fetch origin 失败: ' + f1.stderr.slice(0, 200) };
 
-      // MR ref 优先用 head sha(绝对有效, 避开 --to "refs/..." 解析问题)
+      // 历史 MR(已合入/关闭)不能走 目标分支→head 的 diff(目标分支已演进/源分支可能被删, 解析语义错误)。
+      // 改用 --commit 直接审查该 MR 源分支 head(其引入的全部提交), 与待合入 MR 明确区分。
+      if (historyMode || String(mr.state).toLowerCase() === 'merged' || String(mr.state).toLowerCase() === 'closed') {
+        return await this.runCommitReview(mr.sha || '', log, model);
+      }
+
+      // 待合入 MR: 目标分支 → MR head sha(绝对有效)
       let ref = mr.sha || '';
       if (!ref) {
         const fetched = await this._fetchMrRef(repoDir, iid, mr.source_branch);
@@ -247,21 +254,23 @@ class ReviewBackend {
   }
 
   /** 审查单次提交(ocr --commit) */
-  async runCommitReview(sha, log = () => {}) {
+  async runCommitReview(sha, log = () => {}, model) {
     try {
       const repoDir = this.config.repoDir;
       if (!repoDir || !fs.existsSync(path.join(repoDir, '.git'))) {
         return { ok: false, error: `仓库目录无效: ${repoDir}` };
       }
+      const mdl = model || this.config.model || 'deepseek-v4-flash';
+      if (!sha) return { ok: false, error: '该历史 MR 缺少 head commit(sha), 无法审查' };
       // 优先 native exe; 回退 js 启动器
       const ocrBin = findOcrExe();
       const ocrJs = ocrBin ? null : findOcrJs();
       if (!ocrBin && !ocrJs) return { ok: false, error: '找不到 open-code-review(ocr)' };
       // 审查超时(设置可调, 默认 60 分钟)
       const tmoMs = (Number(this.config.reviewTimeout) > 0 ? Number(this.config.reviewTimeout) : 60) * 60000;
-      log(`审查提交 ${sha.slice(0, 8)} ...`);
+      log(`审查提交 ${String(sha || '').slice(0, 8)} ...`);
       const cc = Number(this.config.concurrency) > 0 ? Number(this.config.concurrency) : 8;
-      const args = ['review', '--commit', sha, '--format', 'json', '--model', this.config.model || 'deepseek-v4-flash', '--concurrency', String(cc)];
+      const args = ['review', '--commit', String(sha || ''), '--format', 'json', '--model', mdl, '--concurrency', String(cc)];
       args.push('--timeout', String(Math.max(1, Math.round(tmoMs / 60000) - 5)));   // ocr 内部超时与客户端对齐
       if (String(this.config.ocrLang || 'auto').trim() === 'zh') {
         args.push('--background', ZH_BG_PROMPT);

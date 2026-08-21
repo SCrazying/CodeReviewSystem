@@ -1,6 +1,6 @@
 {
   "name": "code-review-tool",
-  "version": "1.0.0",
+  "version": "1.1.8",
   "description": "AI 代码审查工具 - 基于阿里 open-code-review + Gitea/GitLab",
   "main": "main.js",
   "author": "nil",
