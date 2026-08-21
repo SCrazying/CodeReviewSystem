@@ -491,12 +491,13 @@ ipcMain.handle('review:run', async (e, iid) => {
   if (r.ok) {
     r.repoKey = currentRepoKey();   // 标记审查所属仓库, 防跨仓库误用
     lastReview = r;
-    saveReviewHistory(r, { repoKey: r.repoKey, repoProject: activeRepoConfig(loadConfig()).project || '', object: `MR !${iid}`, iid });
     pushLog(`审查完成: ${r.comments.length} 条评论`);
     try {
       await translateComments(r.comments, cfg);
       notify(`✅ 审查完成 · MR !${iid}`, `发现 ${r.comments.length} 条问题${r.comments.length ? '（' + r.comments[0].path + ' 等）' : ''}`);
     } catch (e) { pushLog('⚠️ 翻译/通知异常: ' + e.message); }
+    // 历史必须在翻译完成后落盘, 否则保存的是没有中文翻译的原始评论
+    saveReviewHistory(r, { repoKey: r.repoKey, repoProject: activeRepoConfig(loadConfig()).project || '', object: `MR !${iid}`, iid });
     // 后处理(上报/自动流程)独立容错, 任何异常都不影响结果返回
     try { reportReview(r); } catch (e) { pushLog('⚠️ 审查记录上报失败: ' + e.message); }
     if (cfg.autoPost && r.comments.length > 0) {
@@ -540,7 +541,9 @@ async function autoFix(iid, review) {
   return fr;
 }
 
+let _postingBusy = false;   // 回填进行中互斥(IPC 层兜底, 防双击/并发重复发帖)
 ipcMain.handle('review:post', async (e, iid, comments, expectRepoKey, historyReview) => {
+  if (_postingBusy) return { ok: false, error: '已有回填任务进行中, 请等待完成' };
   if (!gate || !gate.authorized) return { ok: false, error: '今日未通过服务端授权' };
   if (!backend) return { ok: false, error: '请先保存配置' };
   // 历史记录回填: 若记录所属仓库与当前不一致, 命中已配置仓库则自动切换, 未配置则提示
@@ -576,9 +579,12 @@ ipcMain.handle('review:post', async (e, iid, comments, expectRepoKey, historyRev
       }
     }
   }
-  const r = await backend.postComments(iid, (line) => pushLog('  ' + line), review, comments || null);
-  pushLog(r.ok ? `✅ 回填完成: ${r.posted} 条评论` : `❌ 回填失败: ${r.error || '未知原因'}`);
-  return r;
+  _postingBusy = true;
+  try {
+    const r = await backend.postComments(iid, (line) => pushLog('  ' + line), review, comments || null);
+    pushLog(r.ok ? `✅ 回填完成: ${r.posted} 条评论` : `❌ 回填失败: ${r.error || '未知原因'}`);
+    return r;
+  } finally { _postingBusy = false; }
 });
 
 ipcMain.handle('server:test', async (e, baseUrl, token) => {
@@ -618,12 +624,13 @@ ipcMain.handle('commit:review', async (e, sha) => {
   if (r.ok) {
     r.repoKey = currentRepoKey();   // 标记审查所属仓库, 防跨仓库误用
     lastReview = r;
-    saveReviewHistory(r, { repoKey: r.repoKey, repoProject: activeRepoConfig(loadConfig()).project || '', object: `提交 ${String(sha).slice(0, 8)}`, sha: String(sha) });
     pushLog(`提交审查完成: ${r.comments.length} 条评论`);
     try {
       await translateComments(r.comments, loadConfig());
       notify(`✅ 提交审查完成 · ${String(sha).slice(0, 8)}`, `发现 ${r.comments.length} 条问题`);
     } catch (e) { pushLog('⚠️ 翻译/通知异常: ' + e.message); }
+    // 同上: 翻译后再保存历史
+    saveReviewHistory(r, { repoKey: r.repoKey, repoProject: activeRepoConfig(loadConfig()).project || '', object: `提交 ${String(sha).slice(0, 8)}`, sha: String(sha) });
     try { reportReview(r); } catch (e) { pushLog('⚠️ 记录上报失败: ' + e.message); }
   } else {
     // 手动停止不算失败, 分开提示
@@ -711,7 +718,7 @@ ipcMain.handle('queue:flush', async () => {
 async function translateComments(comments, cfg) {
   if (!comments || !comments.length) return comments;
   const base = String(cfg.llmBaseUrl || '').replace(/\/+$/, '') || 'https://opencode.ai/zen/go/v1';
-  const key = cfg.llmApiKey || process.env.HERMES_CUSTOM_OPENCODE_API_KEY || '';
+  const key = String(cfg.llmApiKey || '').trim();   // 只用软件内配置
   const model = cfg.model || 'deepseek-v4-flash';   // 修复/翻译共用审查模型
   // 评论已含中文(ocr 已按语言要求输出)则跳过翻译, 避免多余 LLM 流程
   const CJK = /[\u4e00-\u9fff]/;

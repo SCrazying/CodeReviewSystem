@@ -13,6 +13,7 @@ class ReportQueue {
     this.failedConsecutive = 0;   // 连续失败次数
     this.paused = false;          // 达到上限后暂停自动推送
     this.lastError = '';
+    this._flushing = false;   // 推送进行中标志(防并发重复推送)
     fs.mkdirSync(path.dirname(queueFile), { recursive: true });
   }
 
@@ -34,6 +35,7 @@ class ReportQueue {
    * @returns {{posted:number, remaining:number, paused:boolean, error?:string}}
    */
   async flush(baseUrl, token, { force = false } = {}) {
+    if (this._flushing) return { posted: 0, remaining: this.pendingCount(), paused: !!this.paused, error: '推送进行中' };
     if (this.paused && !force) {
       this.log(`⏸️ 已暂停自动推送(连续失败 ${this.failedConsecutive} 次, 达到上限 ${this.maxRetries}), 请手动点「📤 推送」重试`);
       return { posted: 0, remaining: this.pendingCount(), paused: true };
@@ -44,6 +46,8 @@ class ReportQueue {
       if (this.failedConsecutive >= this.maxRetries) this.paused = true;
       return { posted: 0, remaining: this.pendingCount(), paused: this.paused, error: this.lastError };
     }
+    this._flushing = true;
+    try {
     if (!fs.existsSync(this.queueFile)) return { posted: 0, remaining: 0, paused: this.paused };
     const lines = fs.readFileSync(this.queueFile, 'utf-8').split('\n').filter(Boolean);
     if (lines.length === 0) return { posted: 0, remaining: 0, paused: this.paused };
@@ -61,7 +65,13 @@ class ReportQueue {
         remaining.push(line);
       }
     }
-    fs.writeFileSync(this.queueFile, remaining.join('\n') + (remaining.length ? '\n' : ''), 'utf-8');
+    // 合并写回: 推送(网络等待)期间新入队的记录不能被快照覆盖掉(防丢数据)
+    const snapshot = new Set(lines);
+    let currentNow = [];
+    try { currentNow = fs.readFileSync(this.queueFile, 'utf-8').split('\n').filter(Boolean); } catch { }
+    const addedDuringFlush = currentNow.filter((l) => !snapshot.has(l));
+    const finalLines = addedDuringFlush.concat(remaining);
+    fs.writeFileSync(this.queueFile, finalLines.join('\n') + (finalLines.length ? '\n' : ''), 'utf-8');
     if (remaining.length === 0) {
       // 全部推成功: 重置失败计数
       this.failedConsecutive = 0;
@@ -85,6 +95,7 @@ class ReportQueue {
       this.log(`📤 手动推送: 成功 ${posted} 条, 剩余 ${remaining.length} 条`);
     }
     return { posted, remaining: remaining.length, paused: this.paused, error: this.lastError };
+    } finally { this._flushing = false; }
   }
 
   /** 入队一条记录 {type, payload} */

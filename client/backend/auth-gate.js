@@ -5,8 +5,11 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-// 超级管理员密码哈希(sha256, 不存明文)
-const ADMIN_PWD_HASH = '0a0102264839607b664d4e61bafc654ed22f1c2b74092d0da6f1eec5e7751ea7';
+// 超级管理员凭据: 旧版为无盐 sha256 常量(源码公开即等于泄露)。
+// 现改为 PBKDF2 加盐, 凭据存本地 gate.json; 首次用旧口令登录成功后自动升级,
+// 升级后源码常量通道关闭(legacy:false), 源码泄露不再等于口令泄露。
+const ADMIN_PWD_LEGACY_SHA256 = '0a0102264839607b664d4e61bafc654ed22f1c2b74092d0da6f1eec5e7751ea7';
+const PBKDF2_ITERS = 120000;
 
 class AuthGate {
   constructor(gateFile, log = () => {}) {
@@ -30,15 +33,30 @@ class AuthGate {
 
   /** 验证超级管理员密码(通过后永久免服务端验证, 除非手动注销) */
   verifyAdmin(password) {
-    const hash = crypto.createHash('sha256').update(String(password || '')).digest('hex');
-    if (hash !== ADMIN_PWD_HASH) {
+    const rec = this._read();
+    const pwd = String(password || '');
+    let ok = false;
+    if (rec.adminHash && rec.adminSalt) {
+      // 新格式: PBKDF2 加盐 + 恒定时间比较
+      const h = crypto.pbkdf2Sync(pwd, rec.adminSalt, PBKDF2_ITERS, 32, 'sha256').toString('hex');
+      try { ok = crypto.timingSafeEqual(Buffer.from(h), Buffer.from(rec.adminHash)); } catch { ok = false; }
+    } else if (rec.legacy !== false) {
+      // 旧格式: 仅在未迁移前接受一次内置哈希(成功后立即升级并关闭该通道)
+      ok = crypto.createHash('sha256').update(pwd).digest('hex') === ADMIN_PWD_LEGACY_SHA256;
+    }
+    if (!ok) {
       this.lastError = '超级管理员密码错误';
       return { ok: false, error: this.lastError };
     }
     this.authorized = true;
     this.adminAuthorized = true;
-    try { fs.writeFileSync(this.gateFile, JSON.stringify({ date: this._today(), admin: true }), 'utf-8'); } catch { }
-    this.log('🔐 超级管理员授权通过, 永久免服务端验证');
+    // 写入加盐凭据并关闭旧哈希通道
+    try {
+      const salt = crypto.randomBytes(16).toString('hex');
+      const h2 = crypto.pbkdf2Sync(pwd, salt, PBKDF2_ITERS, 32, 'sha256').toString('hex');
+      fs.writeFileSync(this.gateFile, JSON.stringify({ date: this._today(), admin: true, adminSalt: salt, adminHash: h2, legacy: false }), 'utf-8');
+    } catch { }
+    this.log('🔐 超级管理员授权通过(已升级为加盐凭据), 永久免服务端验证');
     return { ok: true, admin: true };
   }
 

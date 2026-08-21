@@ -13,7 +13,7 @@ class FixEngine {
     this.config = config;
     this.log = log;
     this.llmBase = (config.llmBaseUrl || 'https://opencode.ai/zen/go/v1').replace(/\/+$/, '');
-    this.llmKey = config.llmApiKey || process.env.HERMES_CUSTOM_OPENCODE_API_KEY || '';
+    this.llmKey = String(config.llmApiKey || '').trim();   // 只用软件内配置(与设置页校验口径一致)
     this.llmModel = config.fixModel || config.model || 'deepseek-v4-flash';
   }
 
@@ -28,7 +28,7 @@ class FixEngine {
 
   /** 调用 LLM(OpenAI 兼容) */
   async _callLLM(system, user) {
-    if (!this.llmKey) throw new Error('未配置 LLM API Key(环境变量 HERMES_CUSTOM_OPENCODE_API_KEY 或设置中 llmApiKey)');
+    if (!this.llmKey) throw new Error('未配置 LLM API Key, 请到「设置 → 模型服务」填写 API Key 并保存');
     const resp = await fetch(this.llmBase + '/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + this.llmKey },
@@ -90,7 +90,7 @@ class FixEngine {
     if (issues.length === 0) return { ok: false, error: '没有可修复的问题' };
     const repoDir = this.repoDir;
     if (!repoDir || !fs.existsSync(path.join(repoDir, '.git'))) return { ok: false, error: '仓库目录无效' };
-    if (!this.llmKey) return { ok: false, error: '未配置 LLM API Key(需 HERMES_CUSTOM_OPENCODE_API_KEY)' };
+    if (!this.llmKey) return { ok: false, error: '未配置 LLM API Key, 请到「设置 → 模型服务」填写并保存' };
 
     const fromCommit = String(baseBranch || '').startsWith('commit:');
     const commitSha = fromCommit ? baseBranch.slice(7) : '';

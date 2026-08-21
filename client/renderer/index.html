@@ -1432,6 +1432,7 @@ $('branch-all').onchange = () => { if ($('branch-all').checked) loadCommits(); }
 window.api.onLog((line) => log(line));
 // 主进程因历史回填自动切换仓库 → 同步顶部下拉 + 刷新列表
 window.api.onRepoSwitched(async (idx) => {
+  activeRepoIdx = Number(idx);   // 同步本地索引: 否则下次「保存设置」会把激活仓库写回旧值
   $('top-repo').value = String(idx);
   switchLeftTab('tab-mr');
   if (typeof doRefresh === 'function') doRefresh();

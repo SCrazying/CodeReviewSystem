@@ -34,7 +34,8 @@ async function apiFetch(task, subPath, method = 'GET', body) {
 
 /** 确保本地仓库就绪, 返回目录 */
 async function ensureRepo(task) {
-  const dir = path.join(WORK_DIR, String(task.name).replace(/[\\/]/g, '_'));
+  const safeName = String(task.name || 'repo').replace(/[^w一-鿿.-]+/g, '_');   // 防路径穿越(task.name 来自管理端输入)
+  const dir = path.join(WORK_DIR, safeName);
   let repoUrl = task.gitUrl;
   // 解析 clone 地址: 若 gitUrl 是 API 地址则组装
   const isGitea = !/gitlab/i.test(task.gitUrl || task.git_url || '');

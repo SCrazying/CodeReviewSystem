@@ -27,9 +27,10 @@ class ReviewBackend {
     this.config = config;
     this.log = log;
     this.baseUrl = (config.url || '').replace(/\/+$/, '');
-    this.isGitea = this.baseUrl.length > 0 && !/gitlab/i.test(this.baseUrl) && /localhost|127\.0\.0\.1|gitea/i.test(this.baseUrl);
+    // 后端类型: 显式配置优先(gitType: gitea/gitlab), 否则按 URL 关键字推断(默认 Gitea v1)
+    const gt = String(config.gitType || '').trim().toLowerCase();
     // 简化判断: 兼容模式。默认按 Gitea v1 API; 若 URL 含 gitlab 字样则走 v4
-    this.isGitea = !/gitlab/i.test(this.baseUrl || '');
+    this.isGitea = gt === 'gitea' ? true : gt === 'gitlab' ? false : !/gitlab/i.test(this.baseUrl || '');
   }
 
   get token() { return this.config.token || ''; }
@@ -438,14 +439,19 @@ class ReviewBackend {
           }
         }
       } else {
-        const d = await this._api('GET', `/merge_requests/${iid}/discussions?per_page=100`);
-        for (const disc of d || []) {
-          for (const note of disc.notes || []) {
-            if (!(note.body || '').includes(AI_MARK)) continue;
-            const pos = note.position || {};
-            const line = pos.new_line || pos.new_start_line;
-            if (pos.new_path && line) existing.add(`${pos.new_path}:${line}`);
+        // 分页拉全量(每页100, 最多5页): 只取第一页会漏掉老讨论导致重复回填
+        for (let page = 1; page <= 5; page++) {
+          const d = await this._api('GET', `/merge_requests/${iid}/discussions?per_page=100&page=${page}`);
+          const arr = Array.isArray(d) ? d : [];
+          for (const disc of arr) {
+            for (const note of disc.notes || []) {
+              if (!(note.body || '').includes(AI_MARK)) continue;
+              const pos = note.position || {};
+              const line = pos.new_line || pos.new_start_line;
+              if (pos.new_path && line) existing.add(`${pos.new_path}:${line}`);
+            }
           }
+          if (arr.length < 100) break;
         }
       }
     } catch { /* 忽略, 视为无历史评论 */ }
