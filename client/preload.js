@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
   getConfig: () => ipcRenderer.invoke('config:get'),
+  ocrInfo: () => ipcRenderer.invoke('ocr:info'),
   saveConfig: (cfg) => ipcRenderer.invoke('config:save', cfg),
   testConnect: () => ipcRenderer.invoke('connect:test'),
   serverTest: (baseUrl, token) => ipcRenderer.invoke('server:test', baseUrl, token),

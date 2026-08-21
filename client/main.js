@@ -2,7 +2,7 @@
 const { app, BrowserWindow, ipcMain, Notification, shell, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { ReviewBackend } = require('./backend/review-backend');
+const { ReviewBackend, getOcrInfo, OCR_FEATURES } = require('./backend/review-backend');
 const { AuthGate } = require('./backend/auth-gate');
 const { ReportQueue } = require('./backend/report-queue');
 const { FixEngine } = require('./backend/fix-engine');
@@ -454,6 +454,12 @@ ipcMain.handle('llm:validate', async (e, baseUrl, apiKey, model) => {
 // 重新卡控(设置页手动触发)
 ipcMain.handle('gate:recheck', async () => {
   return runDailyGate();
+});
+
+// ocr 引擎信息(设置页「关于引擎」): 版本 + 特性 + license
+ipcMain.handle('ocr:info', async () => {
+  const info = getOcrInfo();
+  return { ...info, features: OCR_FEATURES };
 });
 
 ipcMain.handle('connect:test', async () => {

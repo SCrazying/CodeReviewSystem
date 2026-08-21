@@ -178,6 +178,7 @@
       <button class="nav-item" data-panel="panel-schedule">⏰ 定时任务</button>
       <div class="nav-group">个性化</div>
       <button class="nav-item" data-panel="panel-appearance">☀ 外观</button>
+      <button class="nav-item" data-panel="panel-engine">⚙ 关于引擎</button>
       <button class="nav-item" data-panel="panel-admin">🔐 高级</button>
       <div class="nav-group">帮助</div>
       <button class="nav-item" data-panel="panel-help">📖 使用手册</button>
@@ -308,6 +309,27 @@
               <option value="large">大</option>
             </select>
           </div>
+        </div>
+      </div>
+
+      <div id="panel-engine" class="set-panel" style="display:none;max-width:760px">
+        <div class="panel-title">⚙ AI 审查引擎(open-code-review)</div>
+        <div class="set-group">
+          <div class="set-row"><label>引擎版本</label><span id="eng-version" style="color:var(--fg);font-size:13px">检测中...</span></div>
+          <div class="set-row"><label>构建信息</label><span id="eng-build" style="color:var(--muted);font-size:12px">-</span></div>
+          <div class="set-row"><label>开源许可</label><span id="eng-license" style="color:var(--muted);font-size:12px">-</span></div>
+          <div class="set-row"><label>引擎项目</label><span style="font-size:12px"><a href="#" id="eng-home" style="color:var(--accent)">github.com/alibaba/open-code-review</a><span style="color:var(--muted);font-size:11px">(Apache-2.0)</span></span></div>
+        </div>
+        <div class="set-group">
+          <div class="set-title">✨ 引擎特性</div>
+          <div id="eng-features" class="set-hint" style="display:flex;flex-direction:column;gap:8px;font-size:12.5px"></div>
+        </div>
+        <div class="set-group">
+          <div class="set-title">📜 Apache License 2.0(全文)</div>
+          <details>
+            <summary style="cursor:pointer;color:var(--accent);font-size:12.5px">展开查看完整许可证文本</summary>
+            <pre id="eng-license-full" style="max-height:320px;overflow:auto;background:var(--bg-input,#161b22);padding:12px;border-radius:8px;font-size:11px;line-height:1.5;white-space:pre-wrap;margin-top:8px"></pre>
+          </details>
         </div>
       </div>
 
@@ -578,10 +600,32 @@ function loadRepoEditor(r) {
 function switchSettingsPanel(name) {
   document.querySelectorAll('.settings-nav .nav-item').forEach((b) => b.classList.toggle('active', b.dataset.panel === name));
   document.querySelectorAll('.set-panel').forEach((p) => { p.style.display = p.id === name ? '' : 'none'; });
+  if (name === 'panel-engine') loadEngineInfo();
   // 使用手册等纯查看面板不显示底部保存栏
   const sb = document.querySelector('.set-savebar');
   if (sb) sb.style.display = ['panel-help'].includes(name) ? 'none' : '';
 }
+let _engineLoaded = false;
+async function loadEngineInfo() {
+  try {
+    const info = await window.api.ocrInfo();
+    $('#eng-version').textContent = info.found ? ('v' + (info.version || '?')) : '未找到引擎(请检查安装)';
+    $('#eng-build').textContent = info.found ? ((info.commit ? 'commit ' + info.commit + ' · ' : '') + (info.builtAt || '')) : (info.error || '-');
+    const feat = (info.features || []).map((f) => '<div>' + f.icon + ' <b style="color:var(--fg)">' + f.name + '</b> — ' + f.desc + '</div>').join('');
+    $('#eng-features').innerHTML = feat || '<div>-</div>';
+    if (info.licenseText) {
+      $('#eng-license').innerHTML = '<span style="color:#3fb950">✓ Apache License 2.0</span>(随程序分发)';
+      $('#eng-license-full').textContent = info.licenseText;
+    } else {
+      $('#eng-license').textContent = '未随包找到 LICENSE 文件';
+    }
+    $('#eng-home').onclick = (e) => { e.preventDefault(); window.api.openUrl('https://github.com/alibaba/open-code-review'); };
+    _engineLoaded = true;
+  } catch (e) {
+    $('#eng-version').textContent = '加载失败: ' + e.message;
+  }
+}
+
 function bindSettingsNav() {
   document.querySelectorAll('.settings-nav .nav-item').forEach((b) => {
     b.onclick = () => {

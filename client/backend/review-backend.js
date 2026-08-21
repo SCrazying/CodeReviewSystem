@@ -705,6 +705,43 @@ function findOcrExe() {
   return null;
 }
 
+/** ocr 引擎信息: 版本/特性/license 路径(设置页「关于引擎」展示) */
+function getOcrInfo() {
+  const exe = findOcrExe();
+  const info = { found: !!exe, exePath: exe || '', version: '', builtAt: '', licensePath: '', licenseText: '' };
+  // 版本: 直接跑 exe version(毫秒级返回)
+  if (exe) {
+    try {
+      const out = execFileSync(exe, ['version'], { encoding: 'utf8', timeout: 8000, env: { ...process.env, OCR_NO_UPDATE: '1' } }) || '';
+      const m = out.match(/v([\d.]+)\s*\(([0-9a-f]+)\)/);
+      const bt = out.match(/built at:\s*(\S+)/);
+      if (m) info.version = m[1];
+      if (m && m[2]) info.commit = m[2];
+      if (bt) info.builtAt = bt[1];
+    } catch (e) { info.version = ''; info.error = String(e.message || e).slice(0, 120); }
+    // license: 与 wrapper 包同级的 LICENSE 文件
+    try {
+      const lic = path.join(__dirname, '..', 'node_modules', '@alibaba-group', 'open-code-review', 'LICENSE');
+      if (fs.existsSync(lic)) { info.licensePath = lic; info.licenseText = fs.readFileSync(lic, 'utf8'); }
+    } catch { }
+  }
+  return info;
+}
+
+// 引擎特性清单(随版本能力整理, 前端直接渲染)
+const OCR_FEATURES = [
+  { icon: '🔍', name: 'Diff 智能审查', desc: '基于 git diff 的逐文件 AI 审查, 支持 MR/提交/分支区间' },
+  { icon: '⚡', name: '并发审查', desc: '最大 32 并发文件级并行, 大 MR 提速' },
+  { icon: '🌐', name: '多语言覆盖', desc: 'Go/Java/Python/JS-TS/C-C++/Rust/Ruby/Swift/Kotlin/C#/PHP 及 .ipynb、R、Zig、Elm、Jsonnet、Thrift、.properties 等' },
+  { icon: '🤖', name: '多 Provider', desc: 'OpenAI 兼容网关/Anthropic/Gemini/xAI Grok/Kimi/AWS Bedrock/LiteLLM 等内置协议' },
+  { icon: '⏱️', name: '三级超时控制', desc: 'LLM 单请求秒级超时(OCR_LLM_TIMEOUT) + 单文件任务分钟超时(--timeout) + 进程总超时兜底' },
+  { icon: '🧹', name: '评论去重与过滤', desc: 'LLM 后置过滤低价值评论 + DEDUP 任务合并重复意见' },
+  { icon: '💰', name: 'Token 预算', desc: 'max-tokens-budget 总量封顶, 超限优雅降级输出部分结果' },
+  { icon: '🔄', name: '会话续跑', desc: 'review --resume 从上次断点继续, Ctrl-C 保留 checkpoint' },
+  { icon: '📄', name: '多种输出格式', desc: 'text / json / sarif(Security 扫描标准), 便于平台集成' },
+  { icon: '🛠️', name: '工具调用循环', desc: 'Agent 式逐文件读代码上下文再评审(max-tools 控制轮数)' },
+];
+
 function findOcrJs() {
   const candidates = [
     path.join(__dirname, '..', 'node_modules', '@alibaba-group', 'open-code-review', 'bin', OCR_JS_NAME),
@@ -873,4 +910,4 @@ function findNodeExe() {
   return process.env.ELECTRON_RUN_AS_NODE ? process.execPath : 'node';
 }
 
-module.exports = { ReviewBackend, findOcrJs };
+module.exports = { ReviewBackend, findOcrJs, getOcrInfo, OCR_FEATURES };
