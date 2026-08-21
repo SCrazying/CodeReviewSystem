@@ -398,10 +398,25 @@ app.get('/', (_req, res) => {
 app.use('/web', express.static(webDir));
 
 // ---- 启动 ----
-const PORT = config.port || 3001;
-app.listen(PORT, () => {
-  console.log(`[CodeReviewSystem] 服务端运行于 http://127.0.0.1:${PORT}`);
+// 监听地址与端口: config.json { host, port } → 环境变量 CRS_HOST/CRS_PORT 可覆盖(优先级更高)
+// host 默认 0.0.0.0(所有网卡, 局域网可访问); 仅本机用改为 127.0.0.1
+const HOST = String(process.env.CRS_HOST || config.host || '0.0.0.0').trim() || '0.0.0.0';
+const PORT = Number(process.env.CRS_PORT || config.port || 3001);
+const server = app.listen(PORT, HOST, () => {
+  const shown = HOST === '0.0.0.0' || HOST === '::' ? '所有网卡(局域网可访问)' : HOST;
+  console.log(`[CodeReviewSystem] 服务端运行于 ${shown}:${PORT}`);
   console.log(`[CodeReviewSystem] 健康检查: http://127.0.0.1:${PORT}/api/health`);
+  console.log(`[CodeReviewSystem] 客户端服务端地址填: http://<本机IP>:${PORT}`);
+});
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`[CodeReviewSystem] ❌ 端口 ${PORT} 已被占用! 解决: 改 config.json 的 port, 或启动时 CRS_PORT=3002 node src/index.js`);
+  } else if (err.code === 'EACCES') {
+    console.error(`[CodeReviewSystem] ❌ 无权限绑定 ${HOST}:${PORT}(端口<1024 需管理员; 或 host 不在本机)`);
+  } else {
+    console.error('[CodeReviewSystem] ❌ 监听失败:', err.message);
+  }
+  process.exit(1);
   // 启动定时任务调度器
   try {
     const { startScheduler } = require('./scheduler');
