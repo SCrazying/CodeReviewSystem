@@ -850,26 +850,33 @@ function _llmVals(cfg) {
 }
 
 /** 直接执行 native opencodereview.exe(跳过 js 启动器). 配置目录 = 客户端根(exe 相对, 内网便携) */
-function runNative(exePath, args, cwd, cfg, log = () => {}, timeoutMs = 60 * 60 * 1000) {
-  ensurePortableConfig();
-  syncOcrConfig(cfg, log);   // 审查前: 客户端 LLM 设置 → ocr 便携配置(双保险)
+/** 组装 ocr 子进程环境变量(纯函数, 便于单测锁死注入口径)
+ *  口径: URL/TOKEN/MODEL 仅在非空时注入(防空串误导引擎);
+ *        llmTimeout>0 → OCR_LLM_TIMEOUT 四舍五入秒; ≤0/缺省不注入(用引擎内置默认) */
+function buildNativeEnv(cfg, baseEnv) {
   const { url, model, key } = _llmVals(cfg);
-  if (!url) log('⚠️ 未配置模型 API 地址(设置 → 模型服务 → API 地址), 请先填写并「保存全部设置」');
   const env = {
-    ...process.env,
+    ...(baseEnv || process.env),
     // 关键: 覆盖主目录, 使 ocr 把配置写到便携目录(客户端根/.opencodereview), 随程序走
     USERPROFILE: ocrPortableHome(),
     HOME: ocrPortableHome().replace(/\\/g, '/'),
     OCR_MODEL: model,
     OCR_NO_UPDATE: '1',
   };
-  // exe 认可的 LLM endpoint 三件套: 仅在有效时注入; 空值不注入(避免空串让 exe 以为已配置并解析失败)
   if (url) env.OCR_LLM_URL = url;
   if (key) env.OCR_LLM_TOKEN = key;
   if (model) env.OCR_LLM_MODEL = model;
-  // LLM 单请求超时(秒): 设置项 llmTimeout, >0 时注入(0 = 用 ocr 内置默认)
-  const lt = Number(cfg.llmTimeout);
+  const lt = Number(cfg && cfg.llmTimeout);   // 注意: 独立函数禁用 this(v1.1.11 事故), 一律用入参
   if (Number.isFinite(lt) && lt > 0) env.OCR_LLM_TIMEOUT = String(Math.round(lt));
+  return { env, model };
+}
+
+function runNative(exePath, args, cwd, cfg, log = () => {}, timeoutMs = 60 * 60 * 1000) {
+  ensurePortableConfig();
+  syncOcrConfig(cfg, log);   // 审查前: 客户端 LLM 设置 → ocr 便携配置(双保险)
+  const { url } = _llmVals(cfg);
+  if (!url) log('⚠️ 未配置模型 API 地址(设置 → 模型服务 → API 地址), 请先填写并「保存全部设置」');
+  const { env, model } = buildNativeEnv(cfg, process.env);
   return runChild(exePath, args, cwd, model, env, timeoutMs);
 }
 
@@ -929,4 +936,4 @@ function findNodeExe() {
   return process.env.ELECTRON_RUN_AS_NODE ? process.execPath : 'node';
 }
 
-module.exports = { ReviewBackend, findOcrJs, getOcrInfo, OCR_FEATURES };
+module.exports = { ReviewBackend, findOcrJs, getOcrInfo, buildNativeEnv, OCR_FEATURES };
