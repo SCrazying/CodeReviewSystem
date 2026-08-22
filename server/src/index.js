@@ -40,7 +40,9 @@ const requireClient = async (req, res, next) => {
 app.get('/api/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
-    res.json({ ok: true, db: true, time: new Date().toISOString() });
+    let version = '';
+    try { version = require('../package.json').version || ''; } catch { }
+    res.json({ ok: true, db: true, version, time: new Date().toISOString() });
   } catch (e) {
     res.json({ ok: false, db: false, error: e.message });
   }

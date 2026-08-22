@@ -360,8 +360,8 @@ ipcMain.handle('config:save', async (e, cfg) => {
     autoFix: !!cfg.autoFix,
     autoPushFix: cfg.autoPushFix === undefined ? true : !!cfg.autoPushFix,   // 修复分支默认推送远端, 便于研发参考修改
     reviewDepth: String(cfg.reviewDepth || 'standard').trim(),
-    // 审查输出语言: auto 自动(英文→客户端智能翻译) / zh 中文(ocr 直接中文) / en 英文
-    ocrLang: String(cfg.ocrLang || 'auto').trim(),
+    // 审查输出语言: zh 中文(默认, ocr 直接中文) / auto 自动(英文→客户端智能翻译) / en 英文
+    ocrLang: ['zh', 'auto', 'en'].includes(String(cfg.ocrLang || '').trim()) ? String(cfg.ocrLang).trim() : 'zh',
     // 推送重试上限(连续失败达上限自动停止自动推送)
     pushMaxTries: Number(cfg.pushMaxTries) > 0 ? Number(cfg.pushMaxTries) : 3,
     // 审查并发(ocr 最大并发文件数, 默认 8)
@@ -505,6 +505,38 @@ ipcMain.handle('gate:recheck', async () => {
 });
 
 // ocr 引擎信息(设置页「关于引擎」): 版本 + 特性 + license
+// 服务端健康探测(设置页「服务端状态」用): 只读 /api/health, 不需要 token
+ipcMain.handle('srv:probe', async (_e, url) => {
+  const base = String(url || '').trim().replace(/\/+$/, '');
+  if (!base) return { ok: false, error: '未配置地址' };
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    const r = await fetch(base + '/api/health', { signal: ctrl.signal });
+    clearTimeout(t);
+    const j = await r.json().catch(() => ({}));
+    return { ok: !!(j && j.ok), version: j && j.version || '', db: !!(j && j.db) };
+  } catch (e) {
+    return { ok: false, error: (e && e.message || String(e)).slice(0, 80) };
+  }
+});
+
+// 服务端健康探测(设置页「服务端状态」用): 只读 /api/health, 不需要 token
+ipcMain.handle('srv:probe', async (_e, url) => {
+  const base = String(url || '').trim().replace(/\/+$/, '');
+  if (!base) return { ok: false, error: '未配置地址' };
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5000);
+    const r = await fetch(base + '/api/health', { signal: ctrl.signal });
+    clearTimeout(t);
+    const j = await r.json().catch(() => ({}));
+    return { ok: !!(j && j.ok), version: j && j.version || '', db: !!(j && j.db) };
+  } catch (e) {
+    return { ok: false, error: (e && e.message || String(e)).slice(0, 80) };
+  }
+});
+
 ipcMain.handle('ocr:info', async () => {
   const info = getOcrInfo();
   return { ...info, features: OCR_FEATURES };
