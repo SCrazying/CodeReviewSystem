@@ -171,10 +171,11 @@ class ReviewBackend {
       const f1 = await this._git(repoDir, ['fetch', 'origin']);
       if (!f1.ok) return { ok: false, error: 'fetch origin 失败: ' + f1.stderr.slice(0, 200) };
 
-      // 历史 MR(已合入/关闭)不能走 目标分支→head 的 diff(目标分支已演进/源分支可能被删, 解析语义错误)。
-      // 改用 --commit 直接审查该 MR 源分支 head(其引入的全部提交), 与待合入 MR 明确区分。
+      // 历史 MR(已合入/关闭): 目标分支已演进, 不能拿 origin/<target> 当 from(会把后续无关改动算进 diff)。
+      // 用 merge-base(origin/<target>, head) 找到 MR 真实分叉点作为 from —— 审查范围=MR 引入的全部提交,
+      // 且不依赖源分支存活(head sha 在 fetch 后的本地对象库中即可)。--commit 只审单个提交, 多提交 MR 会漏审, 已弃用。
       if (historyMode || String(mr.state).toLowerCase() === 'merged' || String(mr.state).toLowerCase() === 'closed') {
-        return await this.runCommitReview(mr.sha || '', log, model);
+        return await this.runHistoryReview(mr, log, model);
       }
 
       // 待合入 MR: 目标分支 → MR head sha(绝对有效)
@@ -185,6 +186,20 @@ class ReviewBackend {
       }
       log(`审查范围: origin/${mr.target_branch} → ${ref.slice(0, 40)}`);
 
+      // 与历史 MR 共用主链路(v1.1.13): 组装 ocr 参数+执行+解析统一在 _runRangeReview
+      return await this._runRangeReview(`origin/${mr.target_branch}`, ref, { mrId: mr.iid, srcBranch: mr.source_branch, dstBranch: mr.target_branch }, log, model);
+    } catch (e) {
+      return { ok: false, error: '审查异常: ' + (e.message || e) };
+    }
+  }
+
+  /** 审查单次提交(ocr --commit) */
+  /** 历史 MR 全范围审查: merge-base(目标分支, head) → head, 覆盖该 MR 引入的所有提交
+   *  (v1.1.12 及之前误用 --commit <head>: 该参数只审单个提交的 diff, 多提交 MR 会漏审) */
+  /** 审查一个 from→to 范围(待合入 MR 与历史 MR 共用主链路); meta 仅用于结果上报 */
+  async _runRangeReview(from, to, meta, log = () => {}, model) {
+    try {
+      log(`审查范围: ${String(from).slice(0, 44)} → ${String(to).slice(0, 44)}`);
       // 优先 native exe(直接执行, 配置随程序走); 回退 js 启动器
       const ocrBin = findOcrExe();
       const ocrJs = ocrBin ? null : findOcrJs();
@@ -194,8 +209,8 @@ class ReviewBackend {
 
       const args = [
         'review',
-        '--from', `origin/${mr.target_branch}`,
-        '--to', ref,
+        '--from', `origin/${(meta && meta.dstBranch) || ''}`,
+        '--to', to,
         '--format', 'json',
         '--model', this.config.model || 'deepseek-v4-flash',
       ];
@@ -253,16 +268,41 @@ class ReviewBackend {
         head_sha: manifest.resolved_head || manifest.head_sha || '',
         summary: data.summary || {},
         // 供数据上报
-        mrId: mr.iid,
-        srcBranch: mr.source_branch,
-        dstBranch: mr.target_branch,
+        mrId: (meta && meta.mrId),
+        srcBranch: (meta && meta.srcBranch) || '',
+        dstBranch: (meta && meta.dstBranch) || '',
       };
     } catch (e) {
       return { ok: false, error: '审查异常: ' + (e.message || e) };
     }
   }
 
-  /** 审查单次提交(ocr --commit) */
+  async runHistoryReview(mr, log = () => {}, model) {
+    try {
+      const repoDir = this.config.repoDir;
+      if (!repoDir || !fs.existsSync(path.join(repoDir, '.git'))) {
+        return { ok: false, error: `仓库目录无效: ${repoDir}` };
+      }
+      const head = mr.sha || '';
+      if (!head) return { ok: false, error: '该历史 MR 缺少 head commit(sha), 无法审查' };
+      const target = mr.target_branch || 'main';
+
+      // 本地计算 merge-base: 不依赖远端 API, 源分支删除也不影响(fetch 已把 head 拉进本地对象库)
+      const mb = await this._git(repoDir, ['merge-base', `origin/${target}`, head]);
+      let base = mb.ok ? mb.stdout.trim().split(/\s/)[0] : '';
+      if (!base) return { ok: false, error: `merge-base 失败: ${(mb.stderr || '').slice(0, 150)}` };
+      if (base === head) {
+        log('该 MR 的提交已全部存在于目标分支(diff 为空), 无需审查');
+        return { ok: true, comments: [], skippedNoDiff: true };
+      }
+      log(`历史 MR 范围: merge-base ${base.slice(0, 8)} → head ${head.slice(0, 8)} (${target} 分叉)`);
+
+      // 与待合入同一条审查链路(from/to 形式), 仅 from 换成显式 merge-base sha
+      return await this._runRangeReview(base, head, log, model);
+    } catch (e) {
+      return { ok: false, error: e && e.message || String(e) };
+    }
+  }
   async runCommitReview(sha, log = () => {}, model) {
     try {
       const repoDir = this.config.repoDir;
